@@ -133,29 +133,67 @@ local function AnnounceTrialBegins()
     params:SetText("The Trial Begins")
     CENTER_SCREEN_ANNOUNCE:AddMessageWithParams(params)
 end
-local function AddHardcoreMainMenuButton()
-    -- Only after UI is ready
-    local bar = MAIN_MENU_KEYBOARD and MAIN_MENU_KEYBOARD.categoryBar
-    if not bar then return end
+-- helpers -----------------------------------------------------
+local function GetMainMenuBar()
+    return MAIN_MENU_KEYBOARD and MAIN_MENU_KEYBOARD.categoryBar
+end
 
-    -- Avoid duplicates on /reloadui
-    if HARDCORE._mainMenuBtnAdded then return end
+local function DeactivateMenuButton()
+    local bar = GetMainMenuBar()
+    if bar then
+        ZO_MenuBar_ClearSelection(bar)
+    end
+end
+
+local function ActivateMenuButton()
+    local bar = GetMainMenuBar()
+    if bar then
+        ZO_MenuBar_SelectDescriptor(bar, "HARDCORE_MAINMENU", true) -- optional
+    end
+end
+local function AddHardcoreMainMenuButton()
+    local bar = MAIN_MENU_KEYBOARD and MAIN_MENU_KEYBOARD.categoryBar
+    if not bar or HARDCORE._mainMenuBtnAdded then
+        return
+    end
 
     local data = {
         descriptor = "HARDCORE_MAINMENU",
-        normal    = "/esoui/art/trials/vitalitydepletion.dds",
-        pressed   = "/esoui/art/trials/vitalitydepletion.dds",
+        normal = "/esoui/art/compass/target_white_skull.dds",
+        pressed = "/esoui/art/compass/target_white_skull.dds",
         highlight = "/esoui/art/buttons/large_rightarrow_mouseover.dds",
-        tooltip   = "HARDCORE",
-        callback  = function()
-            -- Opens the polished window your addon already creates
+        categoryName = "HARDCORE", -- <- shows text under the icon
+        callback = function()
             if HARDCORE and HARDCORE.ToggleIntro then
+                -- Toggle the intro window
                 HARDCORE.ToggleIntro()
+
+                -- Reflect open/close state visually
+                local bar = MAIN_MENU_KEYBOARD and MAIN_MENU_KEYBOARD.categoryBar
+                if bar and HARDCORE.window then
+                    if HARDCORE.window:IsHidden() then
+                        ZO_MenuBar_ClearSelection(bar) -- unpress when window closes
+                    else
+                        ZO_MenuBar_SelectDescriptor(bar, "HARDCORE_MAINMENU", true)
+                    end
+                end
             end
-        end,
+        end
+
     }
 
-    ZO_MenuBar_AddButton(bar, data)
+    -- Add and force our own tooltip so it always appears
+    local btn = ZO_MenuBar_AddButton(bar, data)
+    if btn then
+        btn:SetHandler("OnMouseEnter", function(self)
+            InitializeTooltip(InformationTooltip, self, TOP, 0, 10)
+            SetTooltipText(InformationTooltip, "HARDCORE")
+        end)
+        btn:SetHandler("OnMouseExit", function()
+            ClearTooltip(InformationTooltip)
+        end)
+    end
+
     HARDCORE._mainMenuBtnAdded = true
 end
 
@@ -222,7 +260,7 @@ local function CreateIntroWindow()
     -- Top-level window
     local win = wm:CreateTopLevelWindow("HARDCORE_IntroWindow")
     HARDCORE.window = win
-    win:SetMovable(false) -- locked in place
+    win:SetMovable(false)
     win:SetMouseEnabled(true)
     win:SetClampedToScreen(true)
     win:SetResizeHandleSize(0)
@@ -237,42 +275,86 @@ local function CreateIntroWindow()
     frame:SetEdgeTexture("/esoui/art/chatwindow/chat_bg_edge.dds", 32, 4, 4)
     frame:SetEdgeColor(0.9, 0.85, 0.65, 1)
 
-    local inner = wm:CreateControl(nil, win, CT_BACKDROP)
+    -- Inner container
+    local inner = wm:CreateControl("HARDCORE_Inner", win, CT_CONTROL)
     inner:SetAnchor(TOPLEFT, win, TOPLEFT, 8, 8)
     inner:SetAnchor(BOTTOMRIGHT, win, BOTTOMRIGHT, -8, -8)
-    inner:SetCenterTexture("/esoui/art/miscellaneous/centerscreen_announceEdge.dds")
-    inner:SetCenterColor(0.05, 0.05, 0.05, 0.6)
-    inner:SetEdgeTexture("/esoui/art/miscellaneous/centerscreen_announceEdge.dds", 32, 4, 4)
-    inner:SetEdgeColor(0, 0, 0, 0.4)
+
+    -- Background image
+    local bg = wm:CreateControl("HARDCORE_InnerBG", inner, CT_TEXTURE)
+    bg:SetAnchorFill(inner)
+    bg:SetTexture("/esoui/art/loadingscreens/loadscreen_shadastear_01.dds")
+    bg:SetTextureCoords(0, 1, 0, 1)
+    bg:SetDrawTier(DT_LOW)
+    bg:SetDrawLayer(DL_BACKGROUND)
+    bg:SetAlpha(0.60)
+    bg:SetBlendMode(TEX_BLEND_COLOR_ALPHA)
+
+    -- Soft dark wash for readability
+    local wash = wm:CreateControl("HARDCORE_InnerWash", inner, CT_BACKDROP)
+    wash:SetAnchorFill(inner)
+    wash:SetCenterColor(0, 0, 0, 0.40)
+    wash:SetEdgeColor(0, 0, 0, 0)
+    wash:SetEdgeTexture(nil, 1, 1, 0, 0)
+    wash:SetDrawTier(DT_LOW)
+    wash:SetDrawLayer(DL_BACKGROUND)
+    wash:SetDrawLevel(1)
+
+    -- Subtle inner edge
+    local subtleEdge = wm:CreateControl("HARDCORE_InnerEdge", inner, CT_BACKDROP)
+    subtleEdge:SetAnchorFill(inner)
+    subtleEdge:SetCenterColor(0, 0, 0, 0)
+    subtleEdge:SetEdgeTexture("/esoui/art/miscellaneous/centerscreen_announceEdge.dds", 32, 4, 4)
+    subtleEdge:SetEdgeColor(0, 0, 0, 0.25)
+    subtleEdge:SetDrawLayer(DL_OVERLAY)
+    subtleEdge:SetDrawLevel(1)
+
+    -- Corner ornaments (smaller)
+    local function Corner(name, tex, anchorPoint, xOff, yOff, w, h)
+        local t = wm:CreateControl(name, inner, CT_TEXTURE)
+        t:SetTexture(tex)
+        t:SetDimensions(w or 16, h or 16)
+        t:SetBlendMode(TEX_BLEND_ALPHA)
+        t:SetAlpha(0.9)
+        t:SetDrawLayer(DL_OVERLAY)
+        t:SetDrawLevel(5)
+        t:SetAnchor(anchorPoint, inner, anchorPoint, xOff or 0, yOff or 0)
+        return t
+    end
+
+    Corner("HARDCORE_CornerTL", "/esoui/art/reticle/border_topleft.dds", TOPLEFT, -1, -1, 16, 16)
+    Corner("HARDCORE_CornerTR", "/esoui/art/reticle/border_topright.dds", TOPRIGHT, 1, -1, 16, 16)
+    Corner("HARDCORE_CornerBL", "/esoui/art/reticle/border_bottomleft.dds", BOTTOMLEFT, -1, 1, 16, 16)
+    Corner("HARDCORE_CornerBR", "/esoui/art/reticle/border_bottomright.dds", BOTTOMRIGHT, 1, 1, 16, 16)
 
     -- Title
-    local title = wm:CreateControl(nil, win, CT_LABEL)
-    title:SetAnchor(TOP, win, TOP, 0, 20)
+    local title = wm:CreateControl(nil, inner, CT_LABEL)
+    title:SetAnchor(TOP, inner, TOP, 0, 20)
     title:SetFont("$(BOLD_FONT)|38|soft-shadow-thick")
     title:SetHorizontalAlignment(TEXT_ALIGN_CENTER)
     title:SetText("HARDCORE")
     title:SetColor(COLOR.gold:UnpackRGBA())
 
     -- Decorative icons left & right of title
-    local iconLeft = wm:CreateControl(nil, win, CT_TEXTURE)
+    local iconLeft = wm:CreateControl(nil, inner, CT_TEXTURE)
     iconLeft:SetDimensions(40, 40)
     iconLeft:SetAnchor(RIGHT, title, LEFT, -12, 0)
     iconLeft:SetTexture("/esoui/art/icons/poi/poi_solotrial_incomplete.dds")
 
-    local iconRight = wm:CreateControl(nil, win, CT_TEXTURE)
+    local iconRight = wm:CreateControl(nil, inner, CT_TEXTURE)
     iconRight:SetDimensions(40, 40)
     iconRight:SetAnchor(LEFT, title, RIGHT, 12, 0)
     iconRight:SetTexture("/esoui/art/icons/poi/poi_solotrial_incomplete.dds")
 
     -- Divider
-    local divider = wm:CreateControl(nil, win, CT_TEXTURE)
+    local divider = wm:CreateControl(nil, inner, CT_TEXTURE)
     divider:SetAnchor(TOP, title, BOTTOM, 0, 8)
     divider:SetDimensions(520, 8)
     divider:SetTexture("/esoui/art/miscellaneous/horizontaldivider.dds")
     divider:SetAlpha(0.55)
 
     -- Subtitle
-    local sub = wm:CreateControl(nil, win, CT_LABEL)
+    local sub = wm:CreateControl(nil, inner, CT_LABEL)
     sub:SetAnchor(TOP, divider, BOTTOM, 0, 6)
     sub:SetFont("$(MEDIUM_FONT)|18|soft-shadow-thin")
     sub:SetHorizontalAlignment(TEXT_ALIGN_CENTER)
@@ -281,8 +363,8 @@ local function CreateIntroWindow()
     HARDCORE.subtitle = sub
 
     -- Scroll container
-    local scroll = wm:CreateControlFromVirtual("HARDCORE_RulesScroll", win, "ZO_ScrollContainer")
-    scroll:SetAnchor(TOPLEFT, win, TOPLEFT, 24, 120)
+    local scroll = wm:CreateControlFromVirtual("HARDCORE_RulesScroll", inner, "ZO_ScrollContainer")
+    scroll:SetAnchor(TOPLEFT, inner, TOPLEFT, 24, 120)
     scroll:SetDimensions(852, 280)
     local scrollChild = scroll:GetNamedChild("ScrollChild")
 
@@ -383,6 +465,8 @@ local function CreateIntroWindow()
             end)
             btn:SetHandler("OnMouseExit", HideTip)
             btn:SetHandler("OnClicked", function()
+                HARDCORE.ToggleIntro()
+                DeactivateMenuButton()
                 PlaySound(SOUNDS.DUEL_FORFEIT)
                 HARDCORE.saved.isActive = false
                 if HARDCORE.RuleManager and HARDCORE.RuleManager.SetActive then
@@ -412,6 +496,8 @@ local function CreateIntroWindow()
                     HARDCORE_ShowCPBlockedDialog()
                     return
                 end
+                HARDCORE.ToggleIntro() -- closes
+                DeactivateMenuButton()
                 PlaySound(SOUNDS.INSTANCE_SHUTDOWN)
                 PlaySound(SOUNDS.QUEST_ACCEPTED)
                 PlaySound(SOUNDS.ENDLESS_DUNGEON_SCORE_FINAL_FLIP)
@@ -438,9 +524,10 @@ local function CreateIntroWindow()
 
     -- Close (X)
     local close = wm:CreateControlFromVirtual("HARDCORE_Close", win, "ZO_CloseButton")
-    close:SetAnchor(TOPRIGHT, win, TOPRIGHT, -10, 10)
+    close:SetAnchor(TOPRIGHT, win, TOPRIGHT, -18, 14)
     close:SetHandler("OnClicked", function()
         win:SetHidden(true)
+        DeactivateMenuButton()
     end)
 
     -- Fade-in animation
@@ -479,8 +566,10 @@ function HARDCORE.ToggleIntro()
             end
         end
         PlaySound(SOUNDS.SKILL_XP_DARK_FISSURE_CLOSED)
+        ActivateMenuButton()
     else
         HARDCORE.window:SetHidden(true)
+        DeactivateMenuButton()
     end
 end
 
