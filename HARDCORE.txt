@@ -1,0 +1,24 @@
+## Title: HARDCORE
+## Author: You
+## Version: 0.1.0
+## APIVersion: 101046
+## Description: Hardcore rules intro window shown on first load and via /hc.
+## DependsOn: LibAddonMenu-2.0
+## SavedVariables: HARDCORE_SV
+
+RulesManager.lua
+rules/Rule_NoMail.lua
+rules/Rule_NoCrafting.lua
+rules/Rule_LimitedGear.lua
+rules/Rule_NoCompass.lua
+rules/Rule_HardcoreHUD.lua
+rules/Rule_SkillsInCity.lua
+rules/Rule_NoBankAndStore50.lua
+rules/Rule_NoRepair.lua
+rules/Rule_NoSoulGems.lua
+rules/Rule_LimitedTP.lua
+rules/Rule_NoHealthBar.lua
+rules/Rule_LimitedSets.lua
+rules/Rule_NoCP.lua
+rules/Rule_NoTrade.lua
+HARDCORE.lua

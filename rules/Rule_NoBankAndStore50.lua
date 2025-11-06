@@ -1,0 +1,157 @@
+-- Rule_NoBank50.lua
+-- Disables Bank, Guild Bank, and Guild Store (Trading House) until level 50.
+local Rule = {
+    id = "NoBank50",
+    title = "No banks / guild stores until lvl 50",
+    icon = "/esoui/art/vendor/vendor_tabicon_repair_down.dds",
+    defaultEnabled = true
+}
+
+local NS = "HARDCORE_NoBank50"
+Rule.active = false
+Rule._hooksInstalled = false
+
+local function Below50()
+    local level = GetUnitLevel("player") or 1
+    return level < 50
+end
+
+local function Announce(what)
+    local msg = string.format("HARDCORE: %s is disabled until level 50.", what or "Banking / Guild Store")
+    ZO_Alert(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, msg)
+end
+
+-- Safely close current scene if it matches one of the blocked scenes
+local function HideIf(name)
+    local current = SCENE_MANAGER:GetCurrentScene()
+    if current and current.GetName and current:GetName() == name then
+        SCENE_MANAGER:HideCurrentScene()
+    end
+end
+
+local function InstallHooks()
+    if Rule._hooksInstalled then
+        return
+    end
+
+    -- 1) Scene gate: prevent the scenes from showing in the first place
+    ZO_PreHook(SCENE_MANAGER, "Show", function(_, arg)
+        if not (Rule.active and Below50()) then
+            return false
+        end
+
+        local sceneName
+        if type(arg) == "string" then
+            sceneName = arg
+        elseif type(arg) == "table" and arg.GetName then
+            sceneName = arg:GetName()
+        end
+        if not sceneName then
+            return false
+        end
+
+        if sceneName == "bank" then
+            Announce("Bank")
+            return true
+        elseif sceneName == "guildBank" then
+            Announce("Guild Bank")
+            return true
+        elseif sceneName == "tradinghouse" then
+            Announce("Guild Store")
+            return true
+        end
+        return false
+    end)
+
+    -- Defensive: if any of these scenes slip through, immediately hide them.
+    local names = {"bank", "guildBank", "tradinghouse"}
+    for _, sceneName in ipairs(names) do
+        local scene = SCENE_MANAGER:GetScene(sceneName)
+        if scene then
+            scene:RegisterCallback("StateChange", function(_, newState)
+                if Rule.active and Below50() and newState == SCENE_SHOWING then
+                    Announce(sceneName == "tradinghouse" and "Guild Store" or
+                                 (sceneName == "guildBank" and "Guild Bank" or "Bank"))
+                    SCENE_MANAGER:HideCurrentScene()
+                end
+            end)
+        end
+    end
+
+    -- 2) Interaction/event gate: close interactions as soon as they’re opened
+    -- PERSONAL BANK
+    EVENT_MANAGER:RegisterForEvent(NS .. "_BANK", EVENT_OPEN_BANK, function()
+        if Rule.active and Below50() then
+            Announce("Bank")
+            -- Prefer EndInteraction so UI cleans up safely
+            pcall(function()
+                EndInteraction(INTERACTION_BANK)
+            end)
+            HideIf("bank")
+        end
+    end)
+
+    -- GUILD BANK (via banker)
+    EVENT_MANAGER:RegisterForEvent(NS .. "_GBANK", EVENT_OPEN_GUILD_BANK, function()
+        if Rule.active and Below50() then
+            Announce("Guild Bank")
+            pcall(function()
+                EndInteraction(INTERACTION_GUILD_BANK)
+            end)
+            HideIf("guildBank")
+        end
+    end)
+
+    -- GUILD STORE / TRADING HOUSE (via guild trader)
+    EVENT_MANAGER:RegisterForEvent(NS .. "_TH", EVENT_OPEN_TRADING_HOUSE, function()
+        if Rule.active and Below50() then
+            Announce("Guild Store")
+            pcall(function()
+                EndInteraction(INTERACTION_TRADINGHOUSE)
+            end)
+            HideIf("tradinghouse")
+        end
+    end)
+
+    -- Extra belt-and-suspenders: if the interact window opens with a banker/trader,
+    -- abort right away to avoid UI initializing sub-systems that could NPE.
+    EVENT_MANAGER:RegisterForEvent(NS .. "_CHATTER", EVENT_CHATTER_BEGIN, function()
+        if Rule.active and Below50() then
+            -- If any of the above interactions were about to start, end them broadly.
+            pcall(function()
+                EndInteraction(INTERACTION_BANK)
+            end)
+            pcall(function()
+                EndInteraction(INTERACTION_GUILD_BANK)
+            end)
+            pcall(function()
+                EndInteraction(INTERACTION_TRADINGHOUSE)
+            end)
+        end
+    end)
+
+    Rule._hooksInstalled = true
+end
+
+function Rule:OnEnable()
+    self.active = true
+    InstallHooks()
+end
+
+function Rule:OnDisable()
+    self.active = false
+end
+
+-- Registration (defer-safe)
+local function TryRegister()
+    if HARDCORE and HARDCORE.RuleManager and HARDCORE.RuleManager.RegisterRule then
+        HARDCORE.RuleManager:RegisterRule(Rule)
+        EVENT_MANAGER:UnregisterForEvent(NS .. "_DEFER", EVENT_ADD_ON_LOADED)
+    end
+end
+
+if HARDCORE and HARDCORE.RuleManager then
+    TryRegister()
+else
+    EVENT_MANAGER:RegisterForEvent(NS .. "_DEFER", EVENT_ADD_ON_LOADED, TryRegister)
+end

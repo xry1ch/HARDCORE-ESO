@@ -1,0 +1,133 @@
+local Rule = {
+    id = "LimitedGear",
+    title = "Max green gear (50+)",
+    icon = "/esoui/art/inventory/inventory_tabicon_armor_up.dds",
+    defaultEnabled = true
+}
+
+local NS = "HARDCORE_WhiteGear50"
+Rule.active = false
+Rule._installed = false
+Rule._lastAlert = 0
+
+local function is50Plus()
+    local level = GetUnitLevel("player") or 1
+    return level >= 50
+end
+
+local function canActNow()
+    return not IsUnitInCombat("player")
+end
+
+local function alertOnce()
+    local now = GetFrameTimeMilliseconds()
+    if now - Rule._lastAlert > 1500 then
+        ZO_Alert(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, "HARDCORE: Only white/green gear allowed at level 50+.")
+        Rule._lastAlert = now
+    end
+end
+
+local WORN_SLOTS = {EQUIP_SLOT_HEAD, EQUIP_SLOT_SHOULDERS, EQUIP_SLOT_CHEST, EQUIP_SLOT_HAND, EQUIP_SLOT_WAIST,
+                    EQUIP_SLOT_LEGS, EQUIP_SLOT_FEET, EQUIP_SLOT_NECK, EQUIP_SLOT_RING1, EQUIP_SLOT_RING2,
+                    EQUIP_SLOT_MAIN_HAND, EQUIP_SLOT_OFF_HAND, EQUIP_SLOT_BACKUP_MAIN, EQUIP_SLOT_BACKUP_OFF}
+
+-- Disallow any item with quality > green
+local function isAboveGreenEquipped(slot)
+    local link = GetItemLink(BAG_WORN, slot)
+    if not link or link == "" then
+        return false
+    end
+    local q = GetItemLinkQuality(link)
+    -- Allow NORMAL (white) and MAGIC (green). Anything higher (blue/purple/gold/mythic) is not allowed.
+    return q and q > ITEM_QUALITY_MAGIC
+end
+
+local function enforceMaxGreen()
+    if not Rule.active or not is50Plus() then
+        return
+    end
+    if not canActNow() then
+        return
+    end
+
+    local changed = false
+    for _, slot in ipairs(WORN_SLOTS) do
+        if isAboveGreenEquipped(slot) then
+            UnequipItem(slot)
+            changed = true
+        end
+    end
+
+    if changed then
+        alertOnce()
+    end
+end
+
+local function onInventoryChange(_, bagId, slotIndex, isNewItem, itemSoundCategory, updateReason, stackCountChange)
+    if not Rule.active or not is50Plus() then
+        return
+    end
+    if bagId ~= BAG_WORN then
+        return
+    end
+    zo_callLater(enforceMaxGreen, 50)
+end
+
+local function onWeaponSwap()
+    if not Rule.active then
+        return
+    end
+    zo_callLater(enforceMaxGreen, 50)
+end
+
+local function Install()
+    if Rule._installed then
+        return
+    end
+
+    EVENT_MANAGER:RegisterForEvent(NS .. "_ACTIVATED", EVENT_PLAYER_ACTIVATED, function()
+        zo_callLater(enforceMaxGreen, 200)
+    end)
+
+    EVENT_MANAGER:RegisterForEvent(NS .. "_LEVEL", EVENT_LEVEL_UPDATE, function(_, unitTag)
+        if unitTag == "player" then
+            zo_callLater(enforceMaxGreen, 200)
+        end
+    end)
+
+    EVENT_MANAGER:RegisterForEvent(NS .. "_INV", EVENT_INVENTORY_SINGLE_SLOT_UPDATE, onInventoryChange)
+    EVENT_MANAGER:AddFilterForEvent(NS .. "_INV", EVENT_INVENTORY_SINGLE_SLOT_UPDATE, REGISTER_FILTER_BAG_ID, BAG_WORN)
+
+    EVENT_MANAGER:RegisterForEvent(NS .. "_SWAP", EVENT_ACTIVE_WEAPON_PAIR_CHANGED, onWeaponSwap)
+
+    EVENT_MANAGER:RegisterForEvent(NS .. "_OOC", EVENT_PLAYER_COMBAT_STATE, function(_, inCombat)
+        if not inCombat then
+            zo_callLater(enforceMaxGreen, 120)
+        end
+    end)
+
+    Rule._installed = true
+end
+
+function Rule:OnEnable()
+    self.active = true
+    Install()
+    zo_callLater(enforceMaxGreen, 100)
+end
+
+function Rule:OnDisable()
+    self.active = false
+end
+
+local function TryRegister()
+    if HARDCORE and HARDCORE.RuleManager and HARDCORE.RuleManager.RegisterRule then
+        HARDCORE.RuleManager:RegisterRule(Rule)
+        EVENT_MANAGER:UnregisterForEvent(NS .. "_DEFER", EVENT_ADD_ON_LOADED)
+    end
+end
+
+if HARDCORE and HARDCORE.RuleManager then
+    TryRegister()
+else
+    EVENT_MANAGER:RegisterForEvent(NS .. "_DEFER", EVENT_ADD_ON_LOADED, TryRegister)
+end
