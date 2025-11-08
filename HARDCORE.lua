@@ -145,6 +145,23 @@ local function DeactivateMenuButton()
     end
 end
 
+function HARDCORE.OpenChallengeWindow()
+    if not HARDCORE or not HARDCORE.ChallengeUI or not HARDCORE.ChallengeUI.Show then
+        return
+    end
+
+    if not (HARDCORE.saved and HARDCORE.saved.isActive) then
+        d("[HARDCORE] Hardcore is not active. Accept the challenge to open the Challenges window.")
+        return
+    end
+
+    if HARDCORE.ChallengeUI:IsShown() then
+        HARDCORE.ChallengeUI:Hide()
+    else
+        HARDCORE.ChallengeUI:Show()
+    end
+end
+
 local function ActivateMenuButton()
     local bar = GetMainMenuBar()
     if bar then
@@ -159,20 +176,37 @@ local function AddHardcoreMainMenuButton()
 
     local data = {
         descriptor = "HARDCORE_MAINMENU",
-        normal = "/esoui/art/compass/target_white_skull.dds",
-        pressed = "/esoui/art/compass/target_white_skull.dds",
-        highlight = "/esoui/art/buttons/large_rightarrow_mouseover.dds",
+        normal = "/esoui/art/journal/journal_tabicon_achievements_up.dds",
+        pressed = "/esoui/art/journal/journal_tabicon_achievements_down.dds",
+        highlight = "/esoui/art/journal/journal_tabicon_achievements_over.dds",
         categoryName = "HARDCORE", -- <- shows text under the icon
         callback = function()
-            if HARDCORE and HARDCORE.ToggleIntro then
-                -- Toggle the intro window
-                HARDCORE.ToggleIntro()
+            if not HARDCORE then
+                return
+            end
+            local bar = MAIN_MENU_KEYBOARD and MAIN_MENU_KEYBOARD.categoryBar
 
-                -- Reflect open/close state visually
-                local bar = MAIN_MENU_KEYBOARD and MAIN_MENU_KEYBOARD.categoryBar
+            if HARDCORE.saved and HARDCORE.saved.isActive then
+                -- Hardcore run is active: toggle the Challenges window
+                if HARDCORE.OpenChallengeWindow then
+                    HARDCORE.OpenChallengeWindow()
+                end
+                -- reflect selection by whether the Challenges window is visible
+                if bar and HARDCORE.ChallengeUI then
+                    if HARDCORE.ChallengeUI:IsShown() then
+                        ZO_MenuBar_SelectDescriptor(bar, "HARDCORE_MAINMENU", true)
+                    else
+                        ZO_MenuBar_ClearSelection(bar)
+                    end
+                end
+            else
+                -- Not active yet: open your intro window as before
+                if HARDCORE.ToggleIntro then
+                    HARDCORE.ToggleIntro()
+                end
                 if bar and HARDCORE.window then
                     if HARDCORE.window:IsHidden() then
-                        ZO_MenuBar_ClearSelection(bar) -- unpress when window closes
+                        ZO_MenuBar_ClearSelection(bar)
                     else
                         ZO_MenuBar_SelectDescriptor(bar, "HARDCORE_MAINMENU", true)
                     end
@@ -471,7 +505,26 @@ local function CreateIntroWindow()
                 HARDCORE.saved.isActive = false
                 if HARDCORE.RuleManager and HARDCORE.RuleManager.SetActive then
                     HARDCORE.RuleManager:SetActive(false)
+                    function HARDCORE.SurrenderChallenge()
+                        if HARDCORE.RuleManager and HARDCORE.RuleManager.SetActive then
+                            HARDCORE.RuleManager:SetActive(false)
+                        end
+                        if HARDCORE.ChallengeManager and HARDCORE.ChallengeManager.SetActive then
+                            HARDCORE.ChallengeManager:SetActive(false)
+                        end
+                        if HARDCORE.ChallengeUI and HARDCORE.ChallengeUI.Hide then
+                            HARDCORE.ChallengeUI:Hide()
+                        end
+                        HARDCORE.saved.isActive = false
+                    end
                 end
+                if HARDCORE.ChallengeManager and HARDCORE.ChallengeManager.SetActive then
+                    HARDCORE.ChallengeManager:SetActive(false)
+                end
+                if HARDCORE.UIChallenges then
+                    HARDCORE.UIChallenges:Hide()
+                end
+
                 ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.RETRAITING_START_RETRAIT,
                     "You have surrendered the HARDCORE challenge.")
                 if HARDCORE.subtitle then
@@ -508,6 +561,24 @@ local function CreateIntroWindow()
                 HARDCORE.saved.isActive = true
                 if HARDCORE.RuleManager and HARDCORE.RuleManager.SetActive then
                     HARDCORE.RuleManager:SetActive(true)
+                    function HARDCORE.BeginChallengeRun()
+                        HARDCORE.saved = HARDCORE.saved or {}
+                        HARDCORE.saved.isActive = true -- make sure this is set
+                        HARDCORE.saved.acceptedAt = GetTimeStamp()
+
+                        if HARDCORE.RuleManager and HARDCORE.RuleManager.SetActive then
+                            HARDCORE.RuleManager:SetActive(true)
+                        end
+                        if HARDCORE.ChallengeManager and HARDCORE.ChallengeManager.SetActive then
+                            HARDCORE.ChallengeManager:SetActive(true)
+                        end
+                        if HARDCORE.ChallengeUI and HARDCORE.ChallengeUI.Show then
+                            HARDCORE.ChallengeUI:Show()
+                        end
+                    end
+                end
+                if HARDCORE.ChallengeManager and HARDCORE.ChallengeManager.SetActive then
+                    HARDCORE.ChallengeManager:SetActive(true)
                 end
                 ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.ABILITY_SKILL_PURCHASED,
                     "HARDCORE: Challenge active. Good luck!")
@@ -575,7 +646,7 @@ end
 
 local function RegisterSlash()
     SLASH_COMMANDS["/hc"] = function()
-        HARDCORE.ToggleIntro()
+        HARDCORE.OpenChallengeWindow()
     end
 end
 
@@ -590,7 +661,9 @@ local function OnAddOnLoaded(event, addonName)
     if HARDCORE.RuleManager and HARDCORE.RuleManager.Init then
         HARDCORE.RuleManager:Init()
     end
-
+    if HARDCORE.ChallengeManager and HARDCORE.ChallengeManager.Init then
+        HARDCORE.ChallengeManager:Init()
+    end
     -- LAM panel
     local lam = LibAddonMenu2
     if lam then

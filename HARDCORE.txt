@@ -22,3 +22,6 @@ rules/Rule_LimitedSets.lua
 rules/Rule_NoCP.lua
 rules/Rule_NoTrade.lua
 HARDCORE.lua
+challenges/ChallengeManager.lua
+ui/HARDCORE_ChallengesWindow.lua
+challenges/Challenge_Level20.lua
