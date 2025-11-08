@@ -1,19 +1,18 @@
--- File: challenges/Challenge_Level20.lua
--- Example: Reach character level 20.
+-- File: challenges/Challenge_Level40.lua
+-- Challenge: Reach character level 40.
 local CM = HARDCORE and HARDCORE.ChallengeManager
 
 local Chal = {
-    id = "ReachLevel20",
-    title = "Reach Level 20",
-    points = 100,
+    id = "ReachLevel40",
+    title = "Reach Level 40",
+    points = 200,
     icon = "/esoui/art/achievements/achievement_icon_category_character.dds",
-    order = 1
+    order = 3
 }
 
 function Chal:getProgress()
-    -- return current, target
     local lvl = GetUnitLevel("player") or 1
-    return math.min(lvl, 20), 20
+    return math.min(lvl, 40), 40
 end
 
 local function check()
@@ -21,7 +20,7 @@ local function check()
         return
     end
     local cur = GetUnitLevel("player") or 1
-    if cur >= 20 then
+    if cur >= 40 then
         CM:Complete(Chal.id)
     else
         CM:NotifyDirty()

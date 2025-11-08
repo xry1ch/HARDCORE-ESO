@@ -157,8 +157,11 @@ end
 
 function HARDCORE.BeginChallengeRun()
     local sv = HARDCORE.saved
+    if sv.isActive then
+        return
+    end
     sv.isActive = true
-    sv.challengeElapsed = 0 -- fresh run; change to "sv.challengeElapsed = sv.challengeElapsed or 0" if you want resume
+    sv.challengeElapsed = 0
     if not sv.acceptedAt then
         sv.acceptedAt = GetTimeStamp()
     end
@@ -172,6 +175,11 @@ function HARDCORE.BeginChallengeRun()
     end
     if HARDCORE.ChallengeUI and HARDCORE.ChallengeUI.Show then
         HARDCORE.ChallengeUI:Show()
+    end
+
+    -- ✅ Close the intro/acceptance window
+    if HARDCORE.ToggleIntro then
+        HARDCORE.ToggleIntro(false)
     end
 end
 
@@ -549,52 +557,9 @@ local function CreateIntroWindow()
 
     local function UpdateActionButton()
         if HARDCORE.saved.isActive then
-            -- Currently in Hardcore -> offer Surrender (do NOT clear acceptedAt)
-            btn:SetText("Surrender Challenge")
-            btn:SetHandler("OnMouseEnter", function()
-                ShowTip(btn, "Leave Hardcore Mode and return to normal play.")
-            end)
-            btn:SetHandler("OnMouseExit", HideTip)
-            btn:SetHandler("OnClicked", function()
-                HARDCORE.ToggleIntro()
-                DeactivateMenuButton()
-                PlaySound(SOUNDS.DUEL_FORFEIT)
-                HARDCORE.SurrenderChallenge()
-                HARDCORE.saved.isActive = false
-                if HARDCORE.RuleManager and HARDCORE.RuleManager.SetActive then
-                    HARDCORE.RuleManager:SetActive(false)
-                    function HARDCORE.SurrenderChallenge()
-                        if HARDCORE.RuleManager and HARDCORE.RuleManager.SetActive then
-                            HARDCORE.RuleManager:SetActive(false)
-                        end
-                        if HARDCORE.ChallengeManager and HARDCORE.ChallengeManager.SetActive then
-                            HARDCORE.ChallengeManager:SetActive(false)
-                        end
-                        if HARDCORE.ChallengeUI and HARDCORE.ChallengeUI.Hide then
-                            HARDCORE.ChallengeUI:Hide()
-                        end
-                        HARDCORE.saved.isActive = false
-                    end
-                end
-                if HARDCORE.ChallengeManager and HARDCORE.ChallengeManager.SetActive then
-                    HARDCORE.ChallengeManager:SetActive(false)
-                end
-                if HARDCORE.UIChallenges then
-                    HARDCORE.UIChallenges:Hide()
-                end
-
-                ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.RETRAITING_START_RETRAIT,
-                    "You have surrendered the HARDCORE challenge.")
-                if HARDCORE.subtitle then
-                    HARDCORE.subtitle:SetText("Hardcore Mode is inactive. Type /hc to re-enter.")
-                end
-                HARDCORE.ToggleIntro() -- close window
-                zo_callLater(function()
-                    ReloadUI()
-                end, 1000)
-            end)
+            btn:SetHidden(true)
         else
-            -- Not active -> offer Accept (or Re-enter if accepted before)
+            btn:SetHidden(false)
             btn:SetText(HARDCORE.saved.acceptedAt and "Re-enter Challenge" or "Accept Challenge")
             btn:SetHandler("OnMouseEnter", function()
                 ShowTip(btn, "Enable Hardcore Mode on this character.")
@@ -614,7 +579,7 @@ local function CreateIntroWindow()
                 PlaySound(SOUNDS.ENDLESS_DUNGEON_SCORE_FINAL_FLIP)
                 AnnounceTrialBegins()
                 if not HARDCORE.saved.acceptedAt then
-                    HARDCORE.saved.acceptedAt = GetTimeStamp() -- persist first acceptance
+                    HARDCORE.saved.acceptedAt = GetTimeStamp()
                 end
                 HARDCORE.BeginChallengeRun()
                 HARDCORE.saved.isActive = true
@@ -716,6 +681,20 @@ local function OnAddOnLoaded(event, addonName)
     EVENT_MANAGER:UnregisterForEvent(ADDON_NAME, EVENT_ADD_ON_LOADED)
 
     HARDCORE.saved = ZO_SavedVars:NewCharacterIdSettings("HARDCORE_SV", 1, nil, HARDCORE.defaults, GetWorldName())
+    -- If Hardcore is active on load, only ensure a start anchor if it's missing.
+    if HARDCORE.saved.isActive then
+        if not HARDCORE.saved.challengeStartedAt then
+            HARDCORE.saved.challengeStartedAt = GetTimeStamp()
+        end
+
+        -- Re-apply managers (no fresh-run logic here)
+        if HARDCORE.RuleManager and HARDCORE.RuleManager.SetActive then
+            HARDCORE.RuleManager:SetActive(true)
+        end
+        if HARDCORE.ChallengeManager and HARDCORE.ChallengeManager.SetActive then
+            HARDCORE.ChallengeManager:SetActive(true)
+        end
+    end
 
     if HARDCORE.RuleManager and HARDCORE.RuleManager.Init then
         HARDCORE.RuleManager:Init()

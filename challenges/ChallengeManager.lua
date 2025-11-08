@@ -1,6 +1,6 @@
 -- File: challenges/ChallengeManager.lua
 -- Minimal manager for registering challenges, tracking state, points and UI updates.
--- API (under HARDCORE): 
+-- API (under HARDCORE):
 --   HARDCORE.ChallengeManager:Register(chal)
 --   HARDCORE.ChallengeManager:SetActive(isActive)
 --   HARDCORE.ChallengeManager:GetPoints()
@@ -15,16 +15,24 @@ local function log(msg)
 end
 
 -- === SavedVars (per character) ============================================
+-- Consolidated: store challenges under HARDCORE_SV -> HARDCORE.saved.challenges
 local function GetSV()
     HARDCORE = HARDCORE or {}
-    if not HARDCORE.challengeSaved then
-        HARDCORE.challengeSaved = ZO_SavedVars:NewCharacterIdSettings("HARDCORE_Challenge_SV", 1, nil, {
+    HARDCORE.saved = HARDCORE.saved or {} -- created in HARDCORE.lua with ZO_SavedVars:NewCharacterIdSettings("HARDCORE_SV", ...)
+    local sv = HARDCORE.saved.challenges
+    if not sv then
+        sv = {
             points = 0,
-            state = {}, -- [id] = "ACTIVE"|"COMPLETED"|"FAILED"
-            meta = {} -- [id] = {progress=0, completedAt=nil, failedAt=nil}
-        })
+            state = {},
+            meta = {}
+        }
+        HARDCORE.saved.challenges = sv
+    else
+        sv.points = sv.points or 0
+        sv.state = sv.state or {}
+        sv.meta = sv.meta or {}
     end
-    return HARDCORE.challengeSaved
+    return sv
 end
 
 -- === Runtime ===============================================================
@@ -59,12 +67,13 @@ local function setMeta(id, k, v)
 end
 
 local function getMeta(id)
-    local m = GetSV().meta[id]
+    local sv = GetSV()
+    local m = sv.meta[id]
     if not m then
         m = {
             progress = 0
-        };
-        GetSV().meta[id] = m
+        }
+        sv.meta[id] = m
     end
     return m
 end
@@ -79,13 +88,14 @@ end
 function CM:Register(chal)
     assert(type(chal) == "table" and chal.id, "Challenge must have unique id")
     assert(not self.challenges[chal.id], "Duplicate challenge id: " .. tostring(chal.id))
-    -- required fields with sane defaults
+
+    -- defaults
     chal.title = chal.title or chal.id
     chal.points = tonumber(chal.points) or 0
     chal.icon = chal.icon or "/esoui/art/achievements/achievement_skills_tabicon_up.dds"
     chal.getProgress = chal.getProgress or function()
         return 0, 1
-    end -- cur, max
+    end
     chal.onEnable = chal.onEnable or function()
     end
     chal.onDisable = chal.onDisable or function()
@@ -94,14 +104,23 @@ function CM:Register(chal)
     end
     chal.onFail = chal.onFail or function()
     end
+
     self.challenges[chal.id] = chal
-    -- seed state
-    getState(chal.id);
-    getMeta(chal.id)
+
+    -- seed SV buckets
+    getState(chal.id)
+    local m = getMeta(chal.id)
+    m.startedAt = m.startedAt or GetTimeStamp()
+
+    -- If Hardcore is already active, enable this challenge now
+    if HARDCORE and HARDCORE.saved and HARDCORE.saved.isActive then
+        self:_enableOne(chal.id)
+    end
 end
 
 function CM:GetPoints()
-    return GetSV().points or 0
+    local sv = GetSV()
+    return sv.points or 0
 end
 
 function CM:GetStatus(id)
@@ -115,7 +134,7 @@ function CM:ForEach(fn)
 end
 
 function CM:_enableOne(id)
-    local c = self.challenges[id];
+    local c = self.challenges[id]
     if not c or self.enabled[id] then
         return
     end
@@ -127,7 +146,7 @@ function CM:_enableOne(id)
 end
 
 function CM:_disableOne(id)
-    local c = self.challenges[id];
+    local c = self.challenges[id]
     if not c or not self.enabled[id] then
         return
     end
@@ -152,14 +171,14 @@ function CM:Complete(id)
         setState(id, "COMPLETED")
         setMeta(id, "completedAt", GetTimeStamp())
 
-        -- ✅ add challenge points to the per-character total
+        -- add challenge points to the per-character total
         addPoints(self.challenges[id] and self.challenges[id].points or 0)
 
         if self.challenges[id] and self.challenges[id].onComplete then
             pcall(self.challenges[id].onComplete, self.challenges[id])
         end
 
-        -- ✅ tell the UI to refresh (so the top-right total updates immediately)
+        PlaySound(SOUNDS.TRIBUTE_SUMMARY_RANK_CHANGE)
         self:NotifyDirty()
     end
 end
@@ -175,7 +194,7 @@ function CM:Fail(id)
 end
 
 function CM:GetProgress(id)
-    local c = self.challenges[id];
+    local c = self.challenges[id]
     if not c then
         return 0, 1
     end
@@ -184,13 +203,48 @@ function CM:GetProgress(id)
     if ok and type(a) == "number" and type(b) == "number" and b > 0 then
         cur, max = a, b
     end
-    local m = getMeta(id);
+    local m = getMeta(id)
     m.progress = cur
     return cur, max
 end
 
 function CM:NotifyDirty()
     fireDirty()
+end
+
+function CM:Init()
+    -- Ensure our SV table exists under HARDCORE_SV
+    local _ = GetSV()
+
+    -- One-time migration from legacy HARDCORE_Challenge_SV (if present)
+    if _G.HARDCORE_Challenge_SV and not HARDCORE._migratedChallenges then
+        local acc = GetDisplayName()
+        local charId = tostring(GetCurrentCharacterId())
+        local legacy = _G.HARDCORE_Challenge_SV.Default and _G.HARDCORE_Challenge_SV.Default[acc] and
+                           _G.HARDCORE_Challenge_SV.Default[acc][charId]
+        if legacy then
+            local sv = GetSV()
+            if type(legacy.points) == "number" then
+                sv.points = legacy.points
+            end
+            if type(legacy.state) == "table" then
+                for k, v in pairs(legacy.state) do
+                    sv.state[k] = v
+                end
+            end
+            if type(legacy.meta) == "table" then
+                for k, v in pairs(legacy.meta) do
+                    sv.meta[k] = v
+                end
+            end
+            d("[HARDCORE] Migrated challenges from HARDCORE_Challenge_SV → HARDCORE_SV.")
+        end
+        HARDCORE._migratedChallenges = true
+    end
+
+    -- Re-enable challenge hooks based on saved active state
+    local active = HARDCORE and HARDCORE.saved and HARDCORE.saved.isActive
+    self:SetActive(active and true or false)
 end
 
 -- attach globally

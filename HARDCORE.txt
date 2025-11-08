@@ -3,7 +3,7 @@
 ## Version: 0.1.0
 ## APIVersion: 101046
 ## Description: Hardcore rules intro window shown on first load and via /hc.
-## DependsOn: LibAddonMenu-2.0
+## DependsOn: LibAddonMenu-2.0 LibGPS
 ## SavedVariables: HARDCORE_SV
 
 RulesManager.lua
@@ -25,3 +25,9 @@ HARDCORE.lua
 challenges/ChallengeManager.lua
 ui/HARDCORE_ChallengesWindow.lua
 challenges/Challenge_Level20.lua
+challenges/Challenge_Level30.lua
+challenges/Challenge_Level40.lua
+challenges/Challenge_Level50.lua
+challenges/Challenge_KillWorldBoss.lua
+challenges/Challenge_KillWorldBoss_Under30.lua
+challenges/Challenge_KillAnyEnemy.lua

@@ -2,8 +2,55 @@
 -- Adds faded background, smaller divider, chalice icons, close button, class icon, and clean two-column layout.
 local CM = HARDCORE and HARDCORE.ChallengeManager
 local UI = {}
+-- Local helpers (mirror HARDCORE.lua behavior)
+local function GetMainMenuBar()
+    return MAIN_MENU_KEYBOARD and MAIN_MENU_KEYBOARD.categoryBar
+end
+
+local function DeactivateMenuButton()
+    local bar = GetMainMenuBar()
+    if bar and ZO_MenuBar_ClearSelection then
+        ZO_MenuBar_ClearSelection(bar)
+    end
+end
+
 HARDCORE = HARDCORE or {}
 HARDCORE.ChallengeUI = UI
+-- Centralized surrender action used by both the intro window and this UI
+function HARDCORE.SurrenderChallenge()
+    -- mirror old behavior from HARDCORE.lua’s UpdateActionButton surrender branch
+    if HARDCORE.ToggleIntro then
+        HARDCORE.ToggleIntro()
+    end
+    if DeactivateMenuButton then
+        DeactivateMenuButton()
+    end
+    PlaySound(SOUNDS.DUEL_FORFEIT)
+
+    HARDCORE.saved.isActive = false
+    if HARDCORE.RuleManager and HARDCORE.RuleManager.SetActive then
+        HARDCORE.RuleManager:SetActive(false)
+    end
+    if HARDCORE.ChallengeManager and HARDCORE.ChallengeManager.SetActive then
+        HARDCORE.ChallengeManager:SetActive(false)
+    end
+    if HARDCORE.UIChallenges and HARDCORE.UIChallenges.Hide then
+        HARDCORE.UIChallenges:Hide()
+    end
+
+    ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.RETRAITING_START_RETRAIT,
+        "You have surrendered the HARDCORE challenge.")
+    if HARDCORE.subtitle and HARDCORE.subtitle.SetText then
+        HARDCORE.subtitle:SetText("Hardcore Mode is inactive. Type /hc to re-enter.")
+    end
+    if HARDCORE.ToggleIntro then
+        HARDCORE.ToggleIntro()
+    end
+
+    zo_callLater(function()
+        ReloadUI()
+    end, 1000)
+end
 
 -- === Assets ================================================================
 local CLASS_ICONS = {
@@ -68,7 +115,7 @@ local function createRow(parent, x, y, width)
     row.points = WINDOW_MANAGER:CreateControl(nil, row, CT_LABEL)
     row.points:SetFont("ZoFontGameBold")
     row.points:SetHorizontalAlignment(TEXT_ALIGN_RIGHT)
-    row.points:SetAnchor(LEFT, row.pointsIcon, RIGHT, 6, 0)
+    row.points:SetAnchor(LEFT, row.pointsIcon, RIGHT, -16, 0)
     row.points:SetDimensions(54, 22)
 
     -- Progress bar
@@ -85,7 +132,7 @@ local function createRow(parent, x, y, width)
 
     row.progressText = WINDOW_MANAGER:CreateControl(nil, row, CT_LABEL)
     row.progressText:SetFont("ZoFontGame")
-    row.progressText:SetAnchor(RIGHT, row.barBg, RIGHT, -10, -1)
+    row.progressText:SetAnchor(RIGHT, row.barBg, RIGHT, -20, -1)
 
     return row
 end
@@ -150,6 +197,9 @@ function UI:Create()
     self.close:SetAnchor(TOPRIGHT, win, TOPRIGHT, -10, 10)
     self.close:SetHandler("OnClicked", function()
         UI:Hide()
+        if DeactivateMenuButton then
+            DeactivateMenuButton()
+        end -- <- add this line
     end)
 
     -- Class icon (top-left)
@@ -248,6 +298,7 @@ end
 function UI:Hide()
     if self.win then
         self.win:SetHidden(true)
+        DeactivateMenuButton()
     end
 end
 
@@ -289,7 +340,26 @@ function UI:Refresh()
 
     local index = 0
     local CW = colWidth(self)
-    CM:ForEach(function(id, chal)
+    -- Collect + sort by 'order' (then title/id as a stable tiebreaker)
+    local sorted = {}
+    CM:ForEach(function(_id, chal)
+        table.insert(sorted, chal)
+    end)
+
+    table.sort(sorted, function(a, b)
+        local ao, bo = a.order or 999, b.order or 999
+        if ao ~= bo then
+            return ao < bo
+        end
+        local at = (a.title or a.id or "")
+        local bt = (b.title or b.id or "")
+        return at < bt
+    end)
+
+    -- Render in two columns using the sorted list
+    index = 0 -- ensure index starts at 0 for your col/row math
+    for _, chal in ipairs(sorted) do
+        local id = chal.id
         local col = index % 2
         local row = math.floor(index / 2)
         local x = col == 0 and 0 or (CW + COLUMN_GAP)
@@ -315,14 +385,8 @@ function UI:Refresh()
 
         table.insert(self._rows, card)
         index = index + 1
-    end)
+    end
 
     local rows = math.ceil((#self._rows) / 2)
     self.list:SetHeight(rows * ROW_HEIGHT + 10)
 end
-
-EVENT_MANAGER:RegisterForEvent("HARDCORE_ChallengeUI_Login", EVENT_PLAYER_ACTIVATED, function()
-    if HARDCORE and HARDCORE.saved and HARDCORE.saved.isActive then
-        UI:Show()
-    end
-end)
