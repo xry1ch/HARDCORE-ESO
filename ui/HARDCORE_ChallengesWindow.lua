@@ -27,14 +27,26 @@ local function classIcon()
 end
 
 local function timeAliveText()
-    local started = (HARDCORE.saved and HARDCORE.saved.acceptedAt) or GetTimeStamp()
-    local delta = GetTimeStamp() - started
-    local h = math.floor(delta / 3600)
-    local m = math.floor((delta % 3600) / 60)
-    if h > 0 then
-        return string.format("%dh %dm", h, m)
+    if not HARDCORE or not HARDCORE.GetChallengeElapsedSeconds then
+        return "0m"
     end
-    return string.format("%dm", m)
+    local s = HARDCORE.GetChallengeElapsedSeconds()
+    if s < 0 then
+        s = 0
+    end
+    local d = math.floor(s / 86400);
+    s = s % 86400
+    local h = math.floor(s / 3600);
+    s = s % 3600
+    local m = math.floor(s / 60)
+
+    if d > 0 then
+        return string.format("%dd %dh %dm", d, h, m) -- like /played: days, hours, minutes
+    elseif h > 0 then
+        return string.format("%dh %dm", h, m)
+    else
+        return string.format("%dm", m)
+    end
 end
 
 -- Row (challenge card) -------------------------------------------------------
@@ -133,7 +145,6 @@ function UI:Create()
     Corner("HARDCORE_ChallengeCornerBL", "/esoui/art/reticle/border_bottomleft.dds", BOTTOMLEFT, -1, 1, 16, 16)
     Corner("HARDCORE_ChallengeCornerBR", "/esoui/art/reticle/border_bottomright.dds", BOTTOMRIGHT, 1, 1, 16, 16)
 
-    
     -- Close button
     self.close = wm:CreateControlFromVirtual(nil, win, "ZO_CloseButton")
     self.close:SetAnchor(TOPRIGHT, win, TOPRIGHT, -10, 10)
@@ -202,6 +213,30 @@ function UI:Create()
         end)
     end
 end
+-- Tick header once per second (safe global updater)
+EVENT_MANAGER:UnregisterForUpdate("HARDCORE_ChallengeUI_Ticker")
+EVENT_MANAGER:RegisterForUpdate("HARDCORE_ChallengeUI_Ticker", 1000, function()
+    local ui = HARDCORE and HARDCORE.ChallengeUI
+    if not ui or not ui.win or ui.win:IsHidden() then
+        return
+    end
+
+    -- Lvl
+    local lvl = GetUnitLevel("player") or 1
+    if ui.header then
+        ui.header:SetText(("Lvl %d"):format(lvl))
+    end
+
+    -- Time Alive
+    if ui.timeAlive then
+        ui.timeAlive:SetText(("Time Alive %s"):format(timeAliveText()))
+    end
+
+    -- Points
+    if ui.points and HARDCORE and HARDCORE.ChallengeManager and HARDCORE.ChallengeManager.GetPoints then
+        ui.points:SetText(tostring(HARDCORE.ChallengeManager:GetPoints() or 0))
+    end
+end)
 
 function UI:Show()
     self:Create()

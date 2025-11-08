@@ -12,7 +12,10 @@ HARDCORE.version = "0.6.0"
 HARDCORE.defaults = {
     hasSeenIntro = false, -- optional: first-time hint; not used for auto-open once accepted
     acceptedAt = nil, -- timestamp when player first accepted the challenge (ever)
-    isActive = false -- whether Hardcore Mode is currently active
+    isActive = false, -- whether Hardcore Mode is currently active
+    challengeStartedAt = nil, -- timestamp while running
+    challengeElapsed = 0 -- total seconds accumulated (stops when not active)
+
 }
 
 local COLOR = {
@@ -133,6 +136,60 @@ local function AnnounceTrialBegins()
     params:SetText("The Trial Begins")
     CENTER_SCREEN_ANNOUNCE:AddMessageWithParams(params)
 end
+-- === Time tracking (per character) =========================================
+function HARDCORE.GetChallengeElapsedSeconds()
+    local sv = HARDCORE.saved
+    local live = (sv.isActive and sv.challengeStartedAt) and (GetTimeStamp() - sv.challengeStartedAt) or 0
+    return (sv.challengeElapsed or 0) + live
+end
+
+local function _startTimerNow()
+    HARDCORE.saved.challengeStartedAt = GetTimeStamp()
+end
+
+local function _stopTimerAccumulate()
+    local sv = HARDCORE.saved
+    if sv.challengeStartedAt then
+        sv.challengeElapsed = (sv.challengeElapsed or 0) + (GetTimeStamp() - sv.challengeStartedAt)
+        sv.challengeStartedAt = nil
+    end
+end
+
+function HARDCORE.BeginChallengeRun()
+    local sv = HARDCORE.saved
+    sv.isActive = true
+    sv.challengeElapsed = 0 -- fresh run; change to "sv.challengeElapsed = sv.challengeElapsed or 0" if you want resume
+    if not sv.acceptedAt then
+        sv.acceptedAt = GetTimeStamp()
+    end
+    _startTimerNow()
+
+    if HARDCORE.RuleManager and HARDCORE.RuleManager.SetActive then
+        HARDCORE.RuleManager:SetActive(true)
+    end
+    if HARDCORE.ChallengeManager and HARDCORE.ChallengeManager.SetActive then
+        HARDCORE.ChallengeManager:SetActive(true)
+    end
+    if HARDCORE.ChallengeUI and HARDCORE.ChallengeUI.Show then
+        HARDCORE.ChallengeUI:Show()
+    end
+end
+
+function HARDCORE.SurrenderChallenge()
+    _stopTimerAccumulate()
+    HARDCORE.saved.isActive = false
+
+    if HARDCORE.RuleManager and HARDCORE.RuleManager.SetActive then
+        HARDCORE.RuleManager:SetActive(false)
+    end
+    if HARDCORE.ChallengeManager and HARDCORE.ChallengeManager.SetActive then
+        HARDCORE.ChallengeManager:SetActive(false)
+    end
+    if HARDCORE.ChallengeUI and HARDCORE.ChallengeUI.Hide then
+        HARDCORE.ChallengeUI:Hide()
+    end
+end
+
 -- helpers -----------------------------------------------------
 local function GetMainMenuBar()
     return MAIN_MENU_KEYBOARD and MAIN_MENU_KEYBOARD.categoryBar
@@ -502,6 +559,7 @@ local function CreateIntroWindow()
                 HARDCORE.ToggleIntro()
                 DeactivateMenuButton()
                 PlaySound(SOUNDS.DUEL_FORFEIT)
+                HARDCORE.SurrenderChallenge()
                 HARDCORE.saved.isActive = false
                 if HARDCORE.RuleManager and HARDCORE.RuleManager.SetActive then
                     HARDCORE.RuleManager:SetActive(false)
@@ -558,6 +616,7 @@ local function CreateIntroWindow()
                 if not HARDCORE.saved.acceptedAt then
                     HARDCORE.saved.acceptedAt = GetTimeStamp() -- persist first acceptance
                 end
+                HARDCORE.BeginChallengeRun()
                 HARDCORE.saved.isActive = true
                 if HARDCORE.RuleManager and HARDCORE.RuleManager.SetActive then
                     HARDCORE.RuleManager:SetActive(true)
