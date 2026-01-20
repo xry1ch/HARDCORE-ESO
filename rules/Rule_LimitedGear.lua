@@ -1,12 +1,12 @@
 local Rule = {
     id = "LimitedGear",
-    title = "Max green gear (50+)",
+    title = "Max green gear",
     icon = "/esoui/art/inventory/inventory_tabicon_armor_up.dds",
     defaultEnabled = true
 }
 
 local NS = "HARDCORE_WhiteGear50"
-Rule.active = false
+Rule.active = true
 Rule._installed = false
 Rule._lastAlert = 0
 

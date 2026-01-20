@@ -10,12 +10,13 @@ Rule.active = false
 Rule._installed = false
 
 -- === Tweakables ============================================================
-local MAX_DARKEN_ALPHA = 0.85 -- maximum darkness at 0% health
-local CURVE_STRENGTH = 1.15 -- >1 pushes more darkness into low health, <1 linear
+local MAX_DARKEN_ALPHA = 0.95 -- maximum darkness at 0% health
+local CURVE_STRENGTH = 1.40 -- >1 pushes more darkness into low health, <1 linear
 local LOW_HP_THRESHOLD = 0.35 -- start red pulse below 35% HP
 local PULSE_MIN_ALPHA = 0.08 -- minimum red pulse alpha
 local PULSE_MAX_ALPHA = 0.25 -- maximum red pulse alpha (added on top of darken)
 local PULSE_PERIOD_MS = 900 -- full in-out period
+local FADE_START_HP = 0.80 -- no darkening above 80% HP
 
 -- === Logging ===============================================================
 local function log(msg)
@@ -33,7 +34,11 @@ local function GetPlayerHealthPercent()
     end
     return zo_clamp(cur / max, 0, 1)
 end
-
+local function FadeFactorFromHP(hp)
+    -- 0 when hp >= FADE_START_HP; 1 when hp == 0
+    local t = zo_clamp((FADE_START_HP - hp) / FADE_START_HP, 0, 1)
+    return math.pow(t, CURVE_STRENGTH)
+end
 -- === Hide the vanilla Health bar ===========================================
 local function ApplyHide()
     if not Rule.active then
@@ -155,10 +160,8 @@ local function UpdateOverlayFromHealth()
     EnsureOverlay()
 
     local hp = GetPlayerHealthPercent()
-    local missing = 1 - hp
-    local curve = math.pow(missing, CURVE_STRENGTH)
+    local curve = FadeFactorFromHP(hp)
     local alpha = zo_clamp(curve * MAX_DARKEN_ALPHA, 0, MAX_DARKEN_ALPHA)
-
     ApplyOverlayAlpha(alpha)
 
     -- Low HP pulse gating
@@ -238,8 +241,7 @@ local function Install()
             end
             EnsureOverlay()
             local hp = (powerMax and powerMax > 0) and zo_clamp(powerValue / powerMax, 0, 1) or 1
-            local missing = 1 - hp
-            local curve = math.pow(missing, CURVE_STRENGTH)
+            local curve = FadeFactorFromHP(hp)
             local alpha = zo_clamp(curve * MAX_DARKEN_ALPHA, 0, MAX_DARKEN_ALPHA)
             ApplyOverlayAlpha(alpha)
 

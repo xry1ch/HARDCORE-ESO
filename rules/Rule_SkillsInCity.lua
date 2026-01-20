@@ -1,4 +1,3 @@
--- Rule_Equipment.lua
 -- Only allow opening the Skills UI if player is in a city/town
 local Rule = {
     id = "EquipmentCitySkills",

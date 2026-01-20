@@ -1,96 +1,108 @@
 local Rule = {
-  id = "NoCrafting",
-  title = "No crafting stations",
-  icon = "/esoui/art/inventory/inventory_craft_tabicon_active.dds",
-  defaultEnabled = true,
+    id = "NoCrafting",
+    title = "No crafting stations (except Alchemy & Cooking)",
+    icon = "/esoui/art/inventory/inventory_craft_tabicon_active.dds",
+    defaultEnabled = true
 }
 
 local NS = "HARDCORE_NoCrafting"
 Rule.active = false
 Rule._hooksInstalled = false
 
+-- Only these scenes are blocked
+-- (Alchemy = "alchemy", Provisioner = "provisioner")
 local CRAFTING_SCENES = {
-  smithing = true,
-  enchanting = true,
-  alchemy = true,
-  provisioner = true,
-  retrait = true,
-  universalDeconstruction = true,
+    smithing = true,
+    enchanting = true,
+    retrait = true,
+    universalDeconstruction = true
 }
 
 local function Announce()
-  ZO_Alert(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, "HARDCORE: Crafting stations are disabled.")
+    ZO_Alert(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, "HARDCORE: Only Alchemy and Cooking are allowed.")
 end
 
 local function CleanExit()
-  zo_callLater(function()
-    if EndCraftingStationInteraction then pcall(EndCraftingStationInteraction) end
-    if IsInteracting and IsInteracting() and EndInteraction then
-      pcall(EndInteraction, INTERACTION_CRAFT)
-      pcall(EndInteraction, INTERACTION_INTERACT)
-    end
-    if SCENE_MANAGER then SCENE_MANAGER:ShowBaseScene() end
-  end, 60)
+    zo_callLater(function()
+        if EndCraftingStationInteraction then
+            pcall(EndCraftingStationInteraction)
+        end
+        if IsInteracting and IsInteracting() and EndInteraction then
+            pcall(EndInteraction, INTERACTION_CRAFT)
+            pcall(EndInteraction, INTERACTION_INTERACT)
+        end
+        if SCENE_MANAGER then
+            SCENE_MANAGER:ShowBaseScene()
+        end
+    end, 60)
 end
 
 local function InstallHooks()
-  if Rule._hooksInstalled then return end
-
-  ZO_PreHook(SCENE_MANAGER, "Show", function(_, arg)
-    if not Rule.active then return false end
-    local sceneName
-    if type(arg) == "string" then
-      sceneName = arg
-    elseif type(arg) == "table" and arg.GetName then
-      sceneName = arg:GetName()
+    if Rule._hooksInstalled then
+        return
     end
-    if sceneName and CRAFTING_SCENES[sceneName] then
-      Announce()
-      CleanExit()
-      return true -- block
-    end
-  end)
 
-  for name in pairs(CRAFTING_SCENES) do
-    local scene = SCENE_MANAGER:GetScene(name)
-    if scene then
-      scene:RegisterCallback("StateChange", function(_, newState)
-        if Rule.active and newState == SCENE_SHOWING then
-          Announce()
-          SCENE_MANAGER:HideCurrentScene()
-          CleanExit()
+    ZO_PreHook(SCENE_MANAGER, "Show", function(_, arg)
+        if not Rule.active then
+            return false
         end
-      end)
+        local sceneName
+        if type(arg) == "string" then
+            sceneName = arg
+        elseif type(arg) == "table" and arg.GetName then
+            sceneName = arg:GetName()
+        end
+        if sceneName and CRAFTING_SCENES[sceneName] then
+            Announce()
+            CleanExit()
+            return true -- block
+        end
+    end)
+
+    for name in pairs(CRAFTING_SCENES) do
+        local scene = SCENE_MANAGER:GetScene(name)
+        if scene then
+            scene:RegisterCallback("StateChange", function(_, newState)
+                if Rule.active and newState == SCENE_SHOWING then
+                    Announce()
+                    SCENE_MANAGER:HideCurrentScene()
+                    CleanExit()
+                end
+            end)
+        end
     end
-  end
 
-  EVENT_MANAGER:RegisterForEvent(NS.."_INTERACT", EVENT_CRAFTING_STATION_INTERACT, function()
-    if not Rule.active then return end
-    Announce()
-    CleanExit()
-  end)
+    EVENT_MANAGER:RegisterForEvent(NS .. "_INTERACT", EVENT_CRAFTING_STATION_INTERACT, function(_, craftSkill)
+        if not Rule.active then
+            return
+        end
+        if craftSkill ~= CRAFTING_TYPE_ALCHEMY and craftSkill ~= CRAFTING_TYPE_PROVISIONING then
+            Announce()
+            CleanExit()
+        end
+    end)
 
-  Rule._hooksInstalled = true
+    Rule._hooksInstalled = true
 end
 
 function Rule:OnEnable()
-  self.active = true
-  InstallHooks()
+    self.active = true
+    InstallHooks()
 end
 
 function Rule:OnDisable()
-  self.active = false
+    self.active = false
 end
 
 local function TryRegister()
-  if HARDCORE and HARDCORE.RuleManager and HARDCORE.RuleManager.RegisterRule then
-    HARDCORE.RuleManager:RegisterRule(Rule)
-    EVENT_MANAGER:UnregisterForEvent(NS.."_DEFER", EVENT_ADD_ON_LOADED)
-  end
+    if HARDCORE and HARDCORE.RuleManager and HARDCORE.RuleManager.RegisterRule then
+        HARDCORE.RuleManager:RegisterRule(Rule)
+        EVENT_MANAGER:UnregisterForEvent(NS .. "_DEFER", EVENT_ADD_ON_LOADED)
+    end
 end
 
 if HARDCORE and HARDCORE.RuleManager then
-  TryRegister()
+    TryRegister()
 else
-  EVENT_MANAGER:RegisterForEvent(NS.."_DEFER", EVENT_ADD_ON_LOADED, TryRegister)
+    EVENT_MANAGER:RegisterForEvent(NS .. "_DEFER", EVENT_ADD_ON_LOADED, TryRegister)
 end

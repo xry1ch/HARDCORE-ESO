@@ -14,7 +14,7 @@ Rule.active = false
 Rule._hooksInstalled = false
 Rule._lastAlertMs = 0
 
--- ===== Helpers =====
+-- Helpers
 local function ShouldThrottleAlert()
     local now = GetFrameTimeMilliseconds()
     if (now - Rule._lastAlertMs) > 1200 then
@@ -38,7 +38,7 @@ local function IsAtWayshrine()
     return itype == INTERACTION_FAST_TRAVEL
 end
 
--- ===== Hooks =====
+-- Hooks
 local function InstallHooks()
     if Rule._hooksInstalled then return end
 

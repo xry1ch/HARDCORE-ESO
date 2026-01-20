@@ -1,23 +1,18 @@
--- Rule_NoBank50.lua
--- Disables Bank, Guild Bank, and Guild Store (Trading House) until level 50.
+-- Rule_NoBank.lua
+-- Disables Bank, Guild Bank, and Guild Store unconditionally while enabled.
 local Rule = {
-    id = "NoBank50",
-    title = "No banks / guild stores until lvl 50",
+    id = "NoBank",
+    title = "No banks / guild stores",
     icon = "/esoui/art/vendor/vendor_tabicon_repair_down.dds",
     defaultEnabled = true
 }
 
-local NS = "HARDCORE_NoBank50"
+local NS = "HARDCORE_NoBank"
 Rule.active = false
 Rule._hooksInstalled = false
 
-local function Below50()
-    local level = GetUnitLevel("player") or 1
-    return level < 50
-end
-
 local function Announce(what)
-    local msg = string.format("HARDCORE: %s is disabled until level 50.", what or "Banking / Guild Store")
+    local msg = string.format("HARDCORE: %s is disabled.", what or "Banking / Guild Store")
     ZO_Alert(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, msg)
 end
 
@@ -36,7 +31,7 @@ local function InstallHooks()
 
     -- 1) Scene gate: prevent the scenes from showing in the first place
     ZO_PreHook(SCENE_MANAGER, "Show", function(_, arg)
-        if not (Rule.active and Below50()) then
+        if not Rule.active then
             return false
         end
 
@@ -69,9 +64,9 @@ local function InstallHooks()
         local scene = SCENE_MANAGER:GetScene(sceneName)
         if scene then
             scene:RegisterCallback("StateChange", function(_, newState)
-                if Rule.active and Below50() and newState == SCENE_SHOWING then
+                if Rule.active and newState == SCENE_SHOWING then
                     Announce(sceneName == "tradinghouse" and "Guild Store" or
-                                 (sceneName == "guildBank" and "Guild Bank" or "Bank"))
+                             (sceneName == "guildBank" and "Guild Bank" or "Bank"))
                     SCENE_MANAGER:HideCurrentScene()
                 end
             end)
@@ -79,11 +74,9 @@ local function InstallHooks()
     end
 
     -- 2) Interaction/event gate: close interactions as soon as they’re opened
-    -- PERSONAL BANK
     EVENT_MANAGER:RegisterForEvent(NS .. "_BANK", EVENT_OPEN_BANK, function()
-        if Rule.active and Below50() then
+        if Rule.active then
             Announce("Bank")
-            -- Prefer EndInteraction so UI cleans up safely
             pcall(function()
                 EndInteraction(INTERACTION_BANK)
             end)
@@ -91,9 +84,8 @@ local function InstallHooks()
         end
     end)
 
-    -- GUILD BANK (via banker)
     EVENT_MANAGER:RegisterForEvent(NS .. "_GBANK", EVENT_OPEN_GUILD_BANK, function()
-        if Rule.active and Below50() then
+        if Rule.active then
             Announce("Guild Bank")
             pcall(function()
                 EndInteraction(INTERACTION_GUILD_BANK)
@@ -102,9 +94,8 @@ local function InstallHooks()
         end
     end)
 
-    -- GUILD STORE / TRADING HOUSE (via guild trader)
     EVENT_MANAGER:RegisterForEvent(NS .. "_TH", EVENT_OPEN_TRADING_HOUSE, function()
-        if Rule.active and Below50() then
+        if Rule.active then
             Announce("Guild Store")
             pcall(function()
                 EndInteraction(INTERACTION_TRADINGHOUSE)
@@ -113,20 +104,11 @@ local function InstallHooks()
         end
     end)
 
-    -- Extra belt-and-suspenders: if the interact window opens with a banker/trader,
-    -- abort right away to avoid UI initializing sub-systems that could NPE.
     EVENT_MANAGER:RegisterForEvent(NS .. "_CHATTER", EVENT_CHATTER_BEGIN, function()
-        if Rule.active and Below50() then
-            -- If any of the above interactions were about to start, end them broadly.
-            pcall(function()
-                EndInteraction(INTERACTION_BANK)
-            end)
-            pcall(function()
-                EndInteraction(INTERACTION_GUILD_BANK)
-            end)
-            pcall(function()
-                EndInteraction(INTERACTION_TRADINGHOUSE)
-            end)
+        if Rule.active then
+            pcall(function() EndInteraction(INTERACTION_BANK) end)
+            pcall(function() EndInteraction(INTERACTION_GUILD_BANK) end)
+            pcall(function() EndInteraction(INTERACTION_TRADINGHOUSE) end)
         end
     end)
 

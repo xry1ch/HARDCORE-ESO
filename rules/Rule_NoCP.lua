@@ -13,7 +13,7 @@ Rule.active = false
 Rule._hooksInstalled = false
 Rule._lastAlertMs = 0
 
--- ===== Helpers =====
+-- Helpers
 local BLOCKED_SCENES = {
     ["champion"] = true,                 -- main CP scene (keyboard)
     ["champion_perks"] = true,           -- fallback name
@@ -47,7 +47,7 @@ local function IsBlockedSceneName(sceneName)
     return string.find(sceneName, "champion", 1, true) ~= nil
 end
 
--- ===== Install hooks =====
+-- Install hooks
 local function InstallHooks()
     if Rule._hooksInstalled then return end
 
@@ -95,7 +95,7 @@ local function InstallHooks()
     Rule._hooksInstalled = true
 end
 
--- ===== Rule interface =====
+-- Rule interface
 function Rule:OnEnable()
     self.active = true
     InstallHooks()
@@ -105,7 +105,7 @@ function Rule:OnDisable()
     self.active = false
 end
 
--- ===== Register with RuleManager (deferred for load order) =====
+-- Register with RuleManager (deferred for load order)
 local function TryRegister()
     if HARDCORE and HARDCORE.RuleManager and HARDCORE.RuleManager.RegisterRule then
         HARDCORE.RuleManager:RegisterRule(Rule)

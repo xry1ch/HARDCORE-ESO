@@ -14,8 +14,9 @@ HARDCORE.defaults = {
     acceptedAt = nil, -- timestamp when player first accepted the challenge (ever)
     isActive = false, -- whether Hardcore Mode is currently active
     challengeStartedAt = nil, -- timestamp while running
-    challengeElapsed = 0 -- total seconds accumulated (stops when not active)
+    challengeElapsed = 0, -- total seconds accumulated (stops when not active)
 
+    minHealthPct = 100 -- NEW: minimum health % reached this run
 }
 
 local COLOR = {
@@ -50,76 +51,76 @@ local RULE_ICONS = {
 
 -- Rules with short tooltip blurbs for professional polish
 local RULES = {{
-    text = "No Mail (until 50)",
+    text = "Sealed Mail",
     icon = RULE_ICONS.mail,
-    tip = "Mail system is locked until level 50"
+    tip = "Couriers refuse your letters and parcels."
 }, {
-    text = "No Crafting",
+    text = "Restricted Crafting",
     icon = RULE_ICONS.crafting,
-    tip = "Crafting, refining, researching and deconstruction are disabled."
+    tip = "Only cooking and alchemy are permitted. All other crafting arts are forbidden on this journey."
 }, {
-    text = "Limited Gear Quality (50+)",
+    text = "Humble Gear Only",
     icon = RULE_ICONS.gear,
-    tip = "From level 50 onward, only white or green gear may be worn."
+    tip = "You may arm yourself only with simple gear of white or green quality."
 }, {
-    text = "Max 2 Pieces per Set",
+    text = "Two-Set Limit",
     icon = RULE_ICONS.sets,
-    tip = "You may equip at most 2 pieces from any item set. Higher set bonuses (3–5 pieces) are forbidden."
+    tip = "You may wear no more than two items from the same set; the greater set bonuses are off-limits."
 }, {
-    text = "No Champion Points",
+    text = "Sealed Champion Power",
     icon = RULE_ICONS.cp,
-    tip = "Do not spend or benefit from Champion Points."
+    tip = "Champion power remains sealed; none may be gained or used."
 }, {
-    text = "Hardcore HUD",
+    text = "Adventurer's HUD",
     icon = RULE_ICONS.hud,
-    tip = "Hidden health attribute bar and action bar (brief peek only)."
+    tip = "Your health bar is hidden. As your strength wanes, your vision dims and narrows, and your action bars remain concealed, revealed only in brief moments."
 }, {
     text = "Blind Combat",
     icon = RULE_ICONS.enemy,
-    tip = "All nameplates, health bars, and the target frame are hidden."
+    tip = "Foes show no names, no health bars, and no target frame. Read the battle, not the UI."
 }, {
-    text = "No Compass",
+    text = "No Guiding Compass",
     icon = RULE_ICONS.compass,
-    tip = "Compass and quest markers on it are disabled."
+    tip = "Your compass is silent, offering no markers or guidance."
 }, {
-    text = "No AOE Cues",
+    text = "Hidden AOE Threats",
     icon = RULE_ICONS.aoe,
-    tip = "Ground telegraphs for enemy AOE attacks are hidden."
+    tip = "Enemy area attacks leave no ground telegraphs. Danger must be sensed, not seen."
 }, {
-    text = "No Bank (until 50)",
+    text = "Locked Banks",
     icon = RULE_ICONS.bank,
-    tip = "Bank access is locked until level 50."
+    tip = "All banks remain inaccessible."
 }, {
-    text = "No Guild Stores",
+    text = "Closed Guild Markets",
     icon = RULE_ICONS.guildstore,
-    tip = "Guild traders and stores cannot be used."
+    tip = "Guild traders and their markets are closed to you."
 }, {
-    text = "No Trading",
+    text = "Self-Reliant Journey",
     icon = RULE_ICONS.trade,
-    tip = "You cannot trade directly with other players."
+    tip = "No direct trade may pass between you and other adventurers."
 }, {
-    text = "No Repairs",
+    text = "Irreparable Gear",
     icon = RULE_ICONS.repairkit,
-    tip = "Repairing gear via vendors or repair kits is disabled. Damaged gear must be replaced."
+    tip = "Gear cannot be repaired; once worn down, it must be replaced."
 }, {
-    text = "No Soul Gems",
+    text = "Dormant Soul Gems",
     icon = RULE_ICONS.soulgem,
-    tip = "Soul gems cannot be used to recharge weapons."
+    tip = "Soul gems cannot restore weapon charges on this challenge."
 }, {
-    text = "Safe Zone Skill Change",
+    text = "Sanctuary Skill Changes",
     icon = RULE_ICONS.safezone,
-    tip = "Skill management is only allowed inside towns and cities."
+    tip = "Skills may be adjusted only within towns and safe settlements."
 }, {
-    text = "Limited Teleport",
+    text = "Bound Wayshrines",
     icon = RULE_ICONS.tp,
     tip = "Fast travel is restricted to wayshrine-to-wayshrine only."
 }, {
     text = "One Life Run",
     icon = RULE_ICONS.permadeath,
-    tip = "One death ends the challenge. No further points or progress, time survived is recorded"
+    tip = "When death claims you, the adventure closes. No more progress. The span of your survival is remembered."
 }}
 
--- Utility: tooltip helpers --------------------------------------------------
+-- Utility: tooltip helpers
 local function ShowTip(ctrl, text)
     if not text or text == "" then
         return
@@ -136,7 +137,44 @@ local function AnnounceTrialBegins()
     params:SetText("The Trial Begins")
     CENTER_SCREEN_ANNOUNCE:AddMessageWithParams(params)
 end
--- === Time tracking (per character) =========================================
+
+local function HARDCORE_GetPlayerClassIngameIcon()
+    local classId = GetUnitClassId("player")
+    local classIndex = GetClassIndexById(classId)
+    if not classIndex then return nil end
+
+    -- GetClassInfo returns (classId, lore, normalIconKeyboard, pressedIconKeyboard, mouseoverIconKeyboard,
+    -- isSelectable, ingameIconKeyboard, ingameIconGamepad, ...)
+    local _, _, _, _, _, _, ingameIconKeyboard = GetClassInfo(classIndex)
+    return ingameIconKeyboard
+end
+
+function HARDCORE.UpdateActiveStatsUI()
+    if not HARDCORE.activeStats then return end
+
+    if not (HARDCORE.saved and HARDCORE.saved.isActive) then
+        HARDCORE.activeStats:SetHidden(true)
+        return
+    end
+
+    HARDCORE.activeStats:SetHidden(false)
+
+    local icon = HARDCORE_GetPlayerClassIngameIcon()
+    if icon and HARDCORE.activeStats.classIcon then
+        HARDCORE.activeStats.classIcon:SetTexture(icon)
+    end
+
+    local lvl = GetUnitLevel("player")
+    if HARDCORE.activeStats.levelLabel then
+        HARDCORE.activeStats.levelLabel:SetText(string.format("Lv %d", lvl))
+    end
+
+    local minPct = (HARDCORE.saved and HARDCORE.saved.minHealthPct) or 100
+    if HARDCORE.activeStats.minHpLabel then
+        HARDCORE.activeStats.minHpLabel:SetText(string.format("%d%%", minPct))
+    end
+end
+-- === Time tracking (per character)
 function HARDCORE.GetChallengeElapsedSeconds()
     local sv = HARDCORE.saved
     local live = (sv.isActive and sv.challengeStartedAt) and (GetTimeStamp() - sv.challengeStartedAt) or 0
@@ -155,6 +193,40 @@ local function _stopTimerAccumulate()
     end
 end
 
+local MINHP_EVENT_NAME = ADDON_NAME .. "_MinHP"
+
+local function HARDCORE_OnPowerUpdate(_, unitTag, powerIndex, powerType, powerValue, powerMax, powerEffectiveMax)
+    if unitTag ~= "player" then return end
+    if powerType ~= POWERTYPE_HEALTH then return end
+
+    if not (HARDCORE.saved and HARDCORE.saved.isActive) then return end
+
+    local cur, maxVal = GetUnitPower("player", POWERTYPE_HEALTH)
+    if not maxVal or maxVal <= 0 then return end
+
+    local pct = zo_floor((cur / maxVal) * 100 + 0.5)
+
+    local prev = HARDCORE.saved.minHealthPct
+    if prev == nil then
+        HARDCORE.saved.minHealthPct = 100
+        prev = 100
+    end
+
+    if pct < prev then
+        HARDCORE.saved.minHealthPct = pct
+        HARDCORE.UpdateActiveStatsUI()
+    end
+end
+
+local function HARDCORE_EnableMinHpTracking()
+    EVENT_MANAGER:UnregisterForEvent(MINHP_EVENT_NAME, EVENT_POWER_UPDATE)
+    EVENT_MANAGER:RegisterForEvent(MINHP_EVENT_NAME, EVENT_POWER_UPDATE, HARDCORE_OnPowerUpdate)
+end
+
+local function HARDCORE_DisableMinHpTracking()
+    EVENT_MANAGER:UnregisterForEvent(MINHP_EVENT_NAME, EVENT_POWER_UPDATE)
+end
+
 function HARDCORE.BeginChallengeRun()
     local sv = HARDCORE.saved
     if sv.isActive then
@@ -162,6 +234,7 @@ function HARDCORE.BeginChallengeRun()
     end
     sv.isActive = true
     sv.challengeElapsed = 0
+    sv.minHealthPct = 100 -- NEW: reset for the run
     if not sv.acceptedAt then
         sv.acceptedAt = GetTimeStamp()
     end
@@ -169,12 +242,6 @@ function HARDCORE.BeginChallengeRun()
 
     if HARDCORE.RuleManager and HARDCORE.RuleManager.SetActive then
         HARDCORE.RuleManager:SetActive(true)
-    end
-    if HARDCORE.ChallengeManager and HARDCORE.ChallengeManager.SetActive then
-        HARDCORE.ChallengeManager:SetActive(true)
-    end
-    if HARDCORE.ChallengeUI and HARDCORE.ChallengeUI.Show then
-        HARDCORE.ChallengeUI:Show()
     end
 
     -- ✅ Close the intro/acceptance window
@@ -186,19 +253,14 @@ end
 function HARDCORE.SurrenderChallenge()
     _stopTimerAccumulate()
     HARDCORE.saved.isActive = false
+    HARDCORE_DisableMinHpTracking() -- NEW
 
     if HARDCORE.RuleManager and HARDCORE.RuleManager.SetActive then
         HARDCORE.RuleManager:SetActive(false)
     end
-    if HARDCORE.ChallengeManager and HARDCORE.ChallengeManager.SetActive then
-        HARDCORE.ChallengeManager:SetActive(false)
-    end
-    if HARDCORE.ChallengeUI and HARDCORE.ChallengeUI.Hide then
-        HARDCORE.ChallengeUI:Hide()
-    end
 end
 
--- helpers -----------------------------------------------------
+-- Helpers
 local function GetMainMenuBar()
     return MAIN_MENU_KEYBOARD and MAIN_MENU_KEYBOARD.categoryBar
 end
@@ -210,22 +272,6 @@ local function DeactivateMenuButton()
     end
 end
 
-function HARDCORE.OpenChallengeWindow()
-    if not HARDCORE or not HARDCORE.ChallengeUI or not HARDCORE.ChallengeUI.Show then
-        return
-    end
-
-    if not (HARDCORE.saved and HARDCORE.saved.isActive) then
-        d("[HARDCORE] Hardcore is not active. Accept the challenge to open the Challenges window.")
-        return
-    end
-
-    if HARDCORE.ChallengeUI:IsShown() then
-        HARDCORE.ChallengeUI:Hide()
-    else
-        HARDCORE.ChallengeUI:Show()
-    end
-end
 
 local function ActivateMenuButton()
     local bar = GetMainMenuBar()
@@ -252,18 +298,9 @@ local function AddHardcoreMainMenuButton()
             local bar = MAIN_MENU_KEYBOARD and MAIN_MENU_KEYBOARD.categoryBar
 
             if HARDCORE.saved and HARDCORE.saved.isActive then
-                -- Hardcore run is active: toggle the Challenges window
-                if HARDCORE.OpenChallengeWindow then
-                    HARDCORE.OpenChallengeWindow()
-                end
-                -- reflect selection by whether the Challenges window is visible
-                if bar and HARDCORE.ChallengeUI then
-                    if HARDCORE.ChallengeUI:IsShown() then
-                        ZO_MenuBar_SelectDescriptor(bar, "HARDCORE_MAINMENU", true)
-                    else
-                        ZO_MenuBar_ClearSelection(bar)
-                    end
-                end
+                -- Hardcore run is active
+                ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.ABILITY_SKILL_PURCHASED,
+                    "HARDCORE: Challenge is active.")
             else
                 -- Not active yet: open your intro window as before
                 if HARDCORE.ToggleIntro then
@@ -301,7 +338,7 @@ EVENT_MANAGER:RegisterForEvent("HARDCORE_MainMenuBtn", EVENT_PLAYER_ACTIVATED, f
     AddHardcoreMainMenuButton()
 end)
 
--- === Champion Points check & dialog ===
+-- === Champion Points check & dialog
 local function HARDCORE_HasAnyChampionSlotted()
     local startSlot, endSlot = GetAssignableChampionBarStartAndEndSlots()
     if not startSlot or not endSlot then
@@ -348,7 +385,7 @@ local function HARDCORE_ShowCPBlockedDialog()
     ZO_Dialogs_ShowDialog("HARDCORE_CP_BLOCKED")
 end
 
--- UI creation ---------------------------------------------------------------
+-- UI creation
 local function CreateIntroWindow()
     if HARDCORE.window then
         return
@@ -555,11 +592,83 @@ local function CreateIntroWindow()
     btn:SetAnchor(BOTTOM, win, BOTTOM, 0, -18)
     btn:SetDimensions(260, 44)
 
+    -- === NEW: Active-run stats shown to the right of the button ===
+    local stats = wm:CreateControl("HARDCORE_ActiveStats", win, CT_CONTROL)
+    HARDCORE.activeStats = stats
+    stats:SetAnchor(LEFT, btn, RIGHT, 60, 0)
+    stats:SetDimensions(260, 44)
+    stats:SetHidden(true)
+
+    -- Class icon
+    local classIcon = wm:CreateControl(nil, stats, CT_TEXTURE)
+    stats.classIcon = classIcon
+    classIcon:SetDimensions(28, 28)
+    classIcon:SetAnchor(TOPLEFT, stats, TOPLEFT, 0, 8)
+    classIcon:SetAlpha(0.95)
+
+    -- Level label (same row)
+    local levelLabel = wm:CreateControl(nil, stats, CT_LABEL)
+    stats.levelLabel = levelLabel
+    levelLabel:SetAnchor(LEFT, classIcon, RIGHT, 6, 0)
+    levelLabel:SetFont("$(BOLD_FONT)|18|soft-shadow-thin")
+    levelLabel:SetColor(COLOR.white:UnpackRGBA())
+    levelLabel:SetText("Lv ?")
+
+    -- Min HP icon (same row)
+    local minHpIcon = wm:CreateControl(nil, stats, CT_TEXTURE)
+    stats.minHpIcon = minHpIcon
+    minHpIcon:SetDimensions(24, 24)
+    minHpIcon:SetAnchor(LEFT, levelLabel, RIGHT, 12, 0)
+    minHpIcon:SetTexture("/esoui/art/icons/alchemy/crafting_alchemy_trait_restorehealth_conflict.dds")
+    minHpIcon:SetAlpha(0.95)
+
+    -- Arrow icon (same row)
+    local arrowIcon = wm:CreateControl(nil, stats, CT_TEXTURE)
+    stats.arrowIcon = arrowIcon
+    arrowIcon:SetDimensions(16, 16)
+    arrowIcon:SetAnchor(LEFT, minHpIcon, RIGHT, 4, 0)
+    arrowIcon:SetTexture("/esoui/art/miscellaneous/gamepad/gp_scrollarrow.dds")
+    arrowIcon:SetAlpha(0.95)
+
+    -- Min HP label (same row)
+    local minHpLabel = wm:CreateControl(nil, stats, CT_LABEL)
+    stats.minHpLabel = minHpLabel
+    minHpLabel:SetAnchor(LEFT, arrowIcon, RIGHT, 4, 0)
+    minHpLabel:SetFont("$(BOLD_FONT)|18|soft-shadow-thin")
+    minHpLabel:SetColor(COLOR.gray:UnpackRGBA())
+    minHpLabel:SetText("100%")
+
     local function UpdateActionButton()
+        btn:SetHidden(false)
+        
         if HARDCORE.saved.isActive then
-            btn:SetHidden(true)
+            -- Challenge is active: show Surrender button
+            btn:SetText("Surrender Challenge")
+            btn:SetHandler("OnMouseEnter", function()
+                ShowTip(btn, "End the hardcore challenge and deactivate the rules.")
+            end)
+            btn:SetHandler("OnMouseExit", HideTip)
+            btn:SetHandler("OnClicked", function()
+                PlaySound(SOUNDS.NEGATIVE_CLICK)
+                HARDCORE.SurrenderChallenge()
+                -- Restore previous HUD settings
+                HARDCORE.RestoreHUDSettings()
+                if HARDCORE.subtitle then
+                    HARDCORE.subtitle:SetText("Hardcore Mode is inactive. You can re-enter anytime.")
+                end
+                ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.ABILITY_SKILL_PURCHASED,
+                    "HARDCORE: Challenge surrendered. Settings restored.")
+                HARDCORE.UpdateActionButton()
+                -- Reload UI to apply restored settings
+                zo_callLater(function()
+                    ReloadUI()
+                end, 500)
+            end)
+            -- show stats + start tracking
+            HARDCORE_EnableMinHpTracking()
+            HARDCORE.UpdateActiveStatsUI()
         else
-            btn:SetHidden(false)
+            -- Challenge is inactive: show Accept/Re-enter button
             btn:SetText(HARDCORE.saved.acceptedAt and "Re-enter Challenge" or "Accept Challenge")
             btn:SetHandler("OnMouseEnter", function()
                 ShowTip(btn, "Enable Hardcore Mode on this character.")
@@ -581,6 +690,8 @@ local function CreateIntroWindow()
                 if not HARDCORE.saved.acceptedAt then
                     HARDCORE.saved.acceptedAt = GetTimeStamp()
                 end
+                -- Save current HUD settings before starting challenge
+                HARDCORE.SaveHUDSettings()
                 HARDCORE.BeginChallengeRun()
                 HARDCORE.saved.isActive = true
                 if HARDCORE.RuleManager and HARDCORE.RuleManager.SetActive then
@@ -611,6 +722,9 @@ local function CreateIntroWindow()
                 end
                 HARDCORE.ToggleIntro() -- close window
             end)
+            -- hide stats + stop tracking
+            HARDCORE_DisableMinHpTracking()
+            if HARDCORE.activeStats then HARDCORE.activeStats:SetHidden(true) end
         end
     end
 
@@ -636,7 +750,7 @@ local function CreateIntroWindow()
     end
 end
 
-function HARDCORE.ToggleIntro()
+function HARDCORE.ToggleIntro(playSound)
     if not HARDCORE.window then
         CreateIntroWindow()
     end
@@ -660,8 +774,10 @@ function HARDCORE.ToggleIntro()
                                               "Accept the challenge to enable the ruleset on this character.")
             end
         end
-        PlaySound(SOUNDS.SKILL_XP_DARK_FISSURE_CLOSED)
         ActivateMenuButton()
+        if playSound ~= false then
+            PlaySound(SOUNDS.SKILL_XP_DARK_FISSURE_CLOSED)
+        end
     else
         HARDCORE.window:SetHidden(true)
         DeactivateMenuButton()
@@ -670,7 +786,17 @@ end
 
 local function RegisterSlash()
     SLASH_COMMANDS["/hc"] = function()
-        HARDCORE.OpenChallengeWindow()
+        if not HARDCORE.window then
+            CreateIntroWindow()
+        end
+        HARDCORE.window:SetHidden(false)
+        if HARDCORE.fadeIn then
+            HARDCORE.fadeIn()
+        end
+        if HARDCORE.UpdateActionButton then
+            HARDCORE.UpdateActionButton()
+        end
+        PlaySound(SOUNDS.SKILL_XP_DARK_FISSURE_CLOSED)
     end
 end
 
@@ -691,16 +817,15 @@ local function OnAddOnLoaded(event, addonName)
         if HARDCORE.RuleManager and HARDCORE.RuleManager.SetActive then
             HARDCORE.RuleManager:SetActive(true)
         end
-        if HARDCORE.ChallengeManager and HARDCORE.ChallengeManager.SetActive then
-            HARDCORE.ChallengeManager:SetActive(true)
+
+        if HARDCORE.saved.minHealthPct == nil then
+            HARDCORE.saved.minHealthPct = 100
         end
+        HARDCORE_EnableMinHpTracking()
     end
 
     if HARDCORE.RuleManager and HARDCORE.RuleManager.Init then
         HARDCORE.RuleManager:Init()
-    end
-    if HARDCORE.ChallengeManager and HARDCORE.ChallengeManager.Init then
-        HARDCORE.ChallengeManager:Init()
     end
     -- LAM panel
     local lam = LibAddonMenu2
@@ -734,24 +859,10 @@ local function OnAddOnLoaded(event, addonName)
     -- Auto-open ONLY until the challenge has ever been accepted
     if not HARDCORE.saved.acceptedAt then
         zo_callLater(function()
-            HARDCORE.ToggleIntro()
+            HARDCORE.ToggleIntro(false)
         end, 600)
     end
 
 end
 
 EVENT_MANAGER:RegisterForEvent(ADDON_NAME, EVENT_ADD_ON_LOADED, OnAddOnLoaded)
-
---[[
-File: HARDCORE/HARDCORE.txt (manifest)
-
-## Title: HARDCORE
-## Author: You
-## Version: 0.6.0
-## APIVersion: 101042
-## Description: Polished rules window with two-column grid, tooltips, fade-in. /hc to toggle.
-## DependsOn: LibAddonMenu-2.0
-## SavedVariables: HARDCORE_SV
-
-HARDCORE.lua
-]]

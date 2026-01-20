@@ -3,7 +3,7 @@
 ## Version: 0.1.0
 ## APIVersion: 101046
 ## Description: Hardcore rules intro window shown on first load and via /hc.
-## DependsOn: LibAddonMenu-2.0 LibGPS
+## DependsOn: LibAddonMenu-2.0
 ## SavedVariables: HARDCORE_SV
 
 RulesManager.lua
@@ -13,7 +13,7 @@ rules/Rule_LimitedGear.lua
 rules/Rule_NoCompass.lua
 rules/Rule_HardcoreHUD.lua
 rules/Rule_SkillsInCity.lua
-rules/Rule_NoBankAndStore50.lua
+rules/Rule_NoBankAndStore.lua
 rules/Rule_NoRepair.lua
 rules/Rule_NoSoulGems.lua
 rules/Rule_LimitedTP.lua
@@ -22,12 +22,3 @@ rules/Rule_LimitedSets.lua
 rules/Rule_NoCP.lua
 rules/Rule_NoTrade.lua
 HARDCORE.lua
-challenges/ChallengeManager.lua
-ui/HARDCORE_ChallengesWindow.lua
-challenges/Challenge_Level20.lua
-challenges/Challenge_Level30.lua
-challenges/Challenge_Level40.lua
-challenges/Challenge_Level50.lua
-challenges/Challenge_KillWorldBoss.lua
-challenges/Challenge_KillWorldBoss_Under30.lua
-challenges/Challenge_KillAnyEnemy.lua
