@@ -31,14 +31,12 @@ local WORN_SLOTS = {EQUIP_SLOT_HEAD, EQUIP_SLOT_SHOULDERS, EQUIP_SLOT_CHEST, EQU
                     EQUIP_SLOT_LEGS, EQUIP_SLOT_FEET, EQUIP_SLOT_NECK, EQUIP_SLOT_RING1, EQUIP_SLOT_RING2,
                     EQUIP_SLOT_MAIN_HAND, EQUIP_SLOT_OFF_HAND, EQUIP_SLOT_BACKUP_MAIN, EQUIP_SLOT_BACKUP_OFF}
 
--- Disallow any item with quality > green
 local function isAboveGreenEquipped(slot)
     local link = GetItemLink(BAG_WORN, slot)
     if not link or link == "" then
         return false
     end
     local q = GetItemLinkQuality(link)
-    -- Allow NORMAL (white) and MAGIC (green). Anything higher (blue/purple/gold/mythic) is not allowed.
     return q and q > ITEM_QUALITY_MAGIC
 end
 

@@ -18,16 +18,13 @@ local PULSE_MAX_ALPHA = 0.25 -- maximum red pulse alpha (added on top of darken)
 local PULSE_PERIOD_MS = 900 -- full in-out period
 local FADE_START_HP = 0.80 -- no darkening above 80% HP
 
--- === Logging ===============================================================
 local function log(msg)
     if msg then
         d(string.format("[HARDCORE][%s] %s", Rule.id, tostring(msg)))
     end
 end
 
--- === Health helpers ========================================================
 local function GetPlayerHealthPercent()
-    -- GetUnitPower returns: current, max, effectiveMax
     local cur, max = GetUnitPower("player", POWERTYPE_HEALTH)
     if not max or max <= 0 then
         return 1
@@ -39,7 +36,6 @@ local function FadeFactorFromHP(hp)
     local t = zo_clamp((FADE_START_HP - hp) / FADE_START_HP, 0, 1)
     return math.pow(t, CURVE_STRENGTH)
 end
--- === Hide the vanilla Health bar ===========================================
 local function ApplyHide()
     if not Rule.active then
         return

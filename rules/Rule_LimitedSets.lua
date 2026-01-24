@@ -10,12 +10,10 @@ Rule.active = false
 Rule._installed = false
 Rule._lastAlert = 0
 
--- === Config ===
 local LIMIT = 2
 local ALERT_COOLDOWN_MS = 1500
-local ENFORCE_DELAY_MS = 60 -- slight delay lets the game finish the equip transaction
+local ENFORCE_DELAY_MS = 60
 
--- All worn equipment slots we care about (armor, jewelry, both weapon bars)
 local WORN_SLOTS = {
   EQUIP_SLOT_HEAD,
   EQUIP_SLOT_SHOULDERS,
@@ -33,10 +31,8 @@ local WORN_SLOTS = {
   EQUIP_SLOT_BACKUP_OFF,
 }
 
--- === Helpers ===
 
 local function canActNow()
-  -- Don’t shuffle gear while in combat
   return not IsUnitInCombat("player")
 end
 
@@ -48,7 +44,6 @@ local function alertOnce(msg)
   end
 end
 
--- Returns counts[setId] = numberEquipped, and slotsBySet[setId] = {equipSlot, ...}
 local function getEquippedSetTallies()
   local counts = {}
   local slotsBySet = {}
@@ -56,9 +51,7 @@ local function getEquippedSetTallies()
   for _, slot in ipairs(WORN_SLOTS) do
     local link = GetItemLink(BAG_WORN, slot)
     if link and link ~= "" then
-      -- GetItemLinkSetInfo: hasSet, setName, numBonuses, numNormalEquipped, maxEquipped, setId, numPerfectedEquipped
-      local hasSet, _, _, _, _, setId = GetItemLinkSetInfo(link, true) -- equipped=true for consistency
-      -- (Function signature from ESO_API.txt confirms availability and return values.) :contentReference[oaicite:0]{index=0}
+      local hasSet, _, _, _, _, setId = GetItemLinkSetInfo(link, true)
       if hasSet and setId and setId > 0 then
         counts[setId] = (counts[setId] or 0) + 1
         local arr = slotsBySet[setId]
@@ -74,7 +67,6 @@ local function getEquippedSetTallies()
   return counts, slotsBySet
 end
 
--- Unequip extras if any set exceeds LIMIT. If recentSlot is provided, we try to unequip that one first.
 local function enforceLimit(recentSlot)
   if not Rule.active or not canActNow() then return end
 
@@ -85,7 +77,6 @@ local function enforceLimit(recentSlot)
     if count > LIMIT then
       local slots = slotsBySet[setId] or {}
 
-      -- Prefer to drop the most recently-changed slot if it belongs to this set
       if recentSlot then
         for i, slot in ipairs(slots) do
           if slot == recentSlot and count > LIMIT then
@@ -98,9 +89,8 @@ local function enforceLimit(recentSlot)
         end
       end
 
-      -- If still over the limit, unequip arbitrary extras (from the end of the list)
       while count > LIMIT and #slots > 0 do
-        local slot = table.remove(slots) -- pop last
+        local slot = table.remove(slots)
         UnequipItem(slot)
         changed = true
         count = count - 1
@@ -113,12 +103,10 @@ local function enforceLimit(recentSlot)
   end
 end
 
--- === Event handlers & install ===
 
 local function onInventoryChange(_, bagId, slotIndex, isNewItem, itemSoundCategory, updateReason, stackCountChange)
   if not Rule.active then return end
   if bagId ~= BAG_WORN then return end
-  -- Run shortly after to let equipment settle
   zo_callLater(function() enforceLimit(slotIndex) end, ENFORCE_DELAY_MS)
 end
 
@@ -161,7 +149,6 @@ function Rule:OnDisable()
   self.active = false
 end
 
--- Deferred registration with the RuleManager
 local function TryRegister()
   if HARDCORE and HARDCORE.RuleManager and HARDCORE.RuleManager.RegisterRule then
     HARDCORE.RuleManager:RegisterRule(Rule)

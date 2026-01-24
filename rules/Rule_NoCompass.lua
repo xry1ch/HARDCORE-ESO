@@ -76,10 +76,8 @@ local function RemoveHook(self)
     self._origSetBossBarActive = nil
 end
 
--- Lifecycle -----------------------------------------------------------
 
 function Rule:OnEnable()
-    -- If UI not ready yet (very early login), defer once to PLAYER_ACTIVATED.
     if not COMPASS_FRAME or not ZO_Compass then
         if not self._playerActivatedCallback then
             self._playerActivatedCallback = function()
@@ -98,10 +96,8 @@ function Rule:OnEnable()
 end
 
 function Rule:OnDisable()
-    -- Always show the compass when the rule is disabled.
     HideCompassFrame(false)
 
-    -- Remove boss-bar hook and any deferred callback.
     RemoveHook(self)
     if self._playerActivatedCallback then
         EVENT_MANAGER:UnregisterForEvent("HARDCORE_NoCompass", EVENT_PLAYER_ACTIVATED)
@@ -109,7 +105,6 @@ function Rule:OnDisable()
     end
 end
 
--- Register with RuleManager
 HARDCORE = HARDCORE or {}
 if HARDCORE.RuleManager and HARDCORE.RuleManager.RegisterRule then
     HARDCORE.RuleManager:RegisterRule(Rule)

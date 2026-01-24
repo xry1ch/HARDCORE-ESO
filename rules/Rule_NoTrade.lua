@@ -26,7 +26,7 @@ end
 
 local function SafeHideTrade()
     zo_callLater(function()
-        if TradeCancel then pcall(TradeCancel) end -- cancels any active trade. :contentReference[oaicite:0]{index=0}
+        if TradeCancel then pcall(TradeCancel) end
         if SCENE_MANAGER and SCENE_MANAGER:GetCurrentScene() and SCENE_MANAGER:GetCurrentScene():GetName() == "trade" then
             SCENE_MANAGER:ShowBaseScene()
         end
@@ -36,7 +36,6 @@ end
 local function InstallHooks()
     if Rule._hooksInstalled then return end
 
-    -- 1) Block initiating trades
     if TradeInvite then
         ZO_PreHook("TradeInvite", function(target)
             if Rule.active then
@@ -54,33 +53,24 @@ local function InstallHooks()
         end)
     end
 
-    -- 2) Auto-decline incoming invites (handle both the invite and the accept)
-    -- If any code tries to accept, block it.
     if TradeInviteAccept then
         ZO_PreHook("TradeInviteAccept", function()
             if Rule.active then
                 Announce()
-                -- proactively decline to be sure
-                if TradeInviteDecline then TradeInviteDecline() end -- explicit decline. :contentReference[oaicite:1]{index=1}
-                return true
+                if TradeInviteDecline then TradeInviteDecline() end
             end
         end)
     end
 
-    -- Try to auto-decline as soon as an invite arrives. If the invite event name ever changes,
-    -- the defensive scene/accept hooks still keep the rule effective.
     if EVENT_TRADE_INVITE_CONSIDER then
         EVENT_MANAGER:RegisterForEvent(NS .. "_INVITE", EVENT_TRADE_INVITE_CONSIDER, function(_, inviterDisplayName)
             if Rule.active and TradeInviteDecline then
-                TradeInviteDecline() -- decline incoming invite as it comes in. :contentReference[oaicite:2]{index=2}
+                TradeInviteDecline()
                 Announce()
             end
         end)
     end
 
-    -- 3) Block placing items / editing the trade
-    -- PlaceInTradeWindow is protected; we can still prehook to swallow the call before it fires.
-    -- (ESO API lists PlaceInTradeWindow and trade edit functions.) 
     if PlaceInTradeWindow then
         ZO_PreHook("PlaceInTradeWindow", function(tradeIndex)
             if Rule.active then
@@ -114,7 +104,6 @@ local function InstallHooks()
         end)
     end
 
-    -- 4) Defensive: if the Trade scene tries to show, cancel & hide it.
     local tradeScene = SCENE_MANAGER and SCENE_MANAGER:GetScene("trade")
     if tradeScene then
         tradeScene:RegisterCallback("StateChange", function(_, newState)
@@ -125,7 +114,6 @@ local function InstallHooks()
         end)
     end
 
-    -- Extra defensive hook on SCENE_MANAGER:Show in case something forces it
     ZO_PreHook(SCENE_MANAGER, "Show", function(_, arg)
         if not Rule.active then return false end
         local sceneName
@@ -147,7 +135,6 @@ end
 function Rule:OnEnable()
     self.active = true
     InstallHooks()
-    -- In case a trade was already up when enabling the rule:
     SafeHideTrade()
 end
 
@@ -155,7 +142,6 @@ function Rule:OnDisable()
     self.active = false
 end
 
--- Register with RuleManager
 local function TryRegister()
     if HARDCORE and HARDCORE.RuleManager and HARDCORE.RuleManager.RegisterRule then
         HARDCORE.RuleManager:RegisterRule(Rule)

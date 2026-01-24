@@ -1,10 +1,5 @@
--- Rule_HardcoreHUD.lua
--- Hides nameplates/healthbars/target frame/combat cues/action bar on enable,
--- briefly & faintly peeks the action bar on entering combat / weapon swap,
--- restores/unhides on disable.
 local ID = "HardcoreHUD"
 
--- >>> Tweakables for the action bar peek <<<
 local PEEK_FADE_IN_MS = 120
 local PEEK_HOLD_MS = 300 -- shorter hold
 local PEEK_FADE_OUT_MS = 120
@@ -16,7 +11,7 @@ local function log(msg)
     end
 end
 
--- Per-character saved vars for this rule
+-- Per-character saved
 local function GetSV()
     HARDCORE = HARDCORE or {}
     if not HARDCORE.hudSaved then
@@ -31,7 +26,6 @@ local function GetSV()
     return HARDCORE.hudSaved
 end
 
--- Helpers
 local function toSetting(v)
     return v and "1" or "0"
 end
@@ -58,7 +52,7 @@ local function setCombatCues(enabledBool)
     SetSetting(SETTING_TYPE_COMBAT, COMBAT_SETTING_MONSTER_TELLS_ENABLED, toSetting(enabledBool))
 end
 
--- Target frame (unitTag "reticleover")
+-- Target frame
 local HIDE_REASON = "HardcoreHUD"
 local function hideTargetFrame(yes)
     if UNIT_FRAMES and UNIT_FRAMES.SetFrameHiddenForReason then
@@ -76,7 +70,7 @@ local function hideActionBar(yes)
     end
 end
 
--- --- Action bar "peek" animation (shorter + fainter) ---
+-- --- Action bar "peek" animation ---
 local fadeTimeline
 local function EnsureFadeTimeline()
     if fadeTimeline or not ZO_ActionBar1 then
@@ -108,18 +102,17 @@ local function EnsureFadeTimeline()
         end
         ZO_ActionBar1:SetHidden(false)
         ZO_ActionBar1:SetAlpha(0)
-        -- make it non-interactive during the peek (optional, defensive)
         if ZO_ActionBar1.SetMouseEnabled then
             ZO_ActionBar1:SetMouseEnabled(false)
         end
     end)
 
     tl:SetHandler("OnStop", function()
-        ZO_ActionBar1:SetAlpha(1) -- reset for next time
+        ZO_ActionBar1:SetAlpha(1)
         if ZO_ActionBar1.SetMouseEnabled then
             ZO_ActionBar1:SetMouseEnabled(true)
         end
-        hideActionBar(true) -- hide again under our reason
+        hideActionBar(true)
     end)
 
     fadeTimeline = tl
@@ -139,7 +132,6 @@ local function FlashActionBar()
     fadeTimeline:PlayFromStart()
 end
 
--- Re-apply hides on load
 local function applyAllHides()
     setNameplates(false)
     setHealthbars(false)
@@ -148,7 +140,6 @@ local function applyAllHides()
     hideActionBar(true)
 end
 
--- Rule
 local Rule = {
     id = ID,
     title = "Hide nameplates, healthbars, target frame, combat cues & action bar (subtle peek)",
@@ -159,15 +150,12 @@ local Rule = {
 function Rule:OnEnable()
     local sv = GetSV()
 
-    -- snapshot
     sv.prev.allNameplates = getNameplates()
     sv.prev.allHealthbars = getHealthbars()
     sv.prev.combatCues = getCombatCues()
 
-    -- apply now
     applyAllHides()
 
-    -- ensure UI-ready apply
     if not self._appliedListener then
         self._appliedListener = true
         local function OnPlayerActivated()
@@ -177,7 +165,6 @@ function Rule:OnEnable()
         EVENT_MANAGER:RegisterForEvent(ID .. "_APPLY", EVENT_PLAYER_ACTIVATED, OnPlayerActivated)
     end
 
-    -- peek triggers
     local function OnCombatState(_, inCombat)
         if inCombat then
             FlashActionBar()
@@ -196,17 +183,14 @@ end
 function Rule:OnDisable()
     local sv = GetSV()
 
-    -- unregister events
     EVENT_MANAGER:UnregisterForEvent(ID .. "_COMBAT", EVENT_PLAYER_COMBAT_STATE)
     EVENT_MANAGER:UnregisterForEvent(ID .. "_WEAPON", EVENT_ACTIVE_WEAPON_PAIR_CHANGED)
     EVENT_MANAGER:UnregisterForEvent(ID .. "_APPLY", EVENT_PLAYER_ACTIVATED)
 
-    -- stop any running animation
     if fadeTimeline and fadeTimeline:IsPlaying() then
         fadeTimeline:Stop()
     end
 
-    -- restore settings
     if sv.prev.allNameplates ~= nil then
         setNameplates(sv.prev.allNameplates)
     end
@@ -217,11 +201,9 @@ function Rule:OnDisable()
         setCombatCues(sv.prev.combatCues)
     end
 
-    -- unhide HUD elements
     hideTargetFrame(false)
     hideActionBar(false)
 
-    -- clear snapshot
     sv.prev.allNameplates = nil
     sv.prev.allHealthbars = nil
     sv.prev.combatCues = nil
@@ -229,7 +211,6 @@ function Rule:OnDisable()
     log("Hardcore HUD disabled: restored settings and HUD")
 end
 
--- Register
 HARDCORE = HARDCORE or {}
 HARDCORE.RuleManager = HARDCORE.RuleManager or {}
 if HARDCORE.RuleManager.RegisterRule then

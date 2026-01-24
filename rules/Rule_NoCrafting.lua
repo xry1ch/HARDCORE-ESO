@@ -9,8 +9,6 @@ local NS = "HARDCORE_NoCrafting"
 Rule.active = false
 Rule._hooksInstalled = false
 
--- Only these scenes are blocked
--- (Alchemy = "alchemy", Provisioner = "provisioner")
 local CRAFTING_SCENES = {
     smithing = true,
     enchanting = true,
@@ -55,7 +53,7 @@ local function InstallHooks()
         if sceneName and CRAFTING_SCENES[sceneName] then
             Announce()
             CleanExit()
-            return true -- block
+            return true
         end
     end)
 

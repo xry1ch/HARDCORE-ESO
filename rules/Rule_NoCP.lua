@@ -1,6 +1,3 @@
--- Rule_NoCP.lua
--- Blocks access to the Champion Points UI (keyboard & gamepad).
-
 local Rule = {
     id = "NoCP",
     title = "No Champion Points UI",
@@ -13,11 +10,10 @@ Rule.active = false
 Rule._hooksInstalled = false
 Rule._lastAlertMs = 0
 
--- Helpers
 local BLOCKED_SCENES = {
-    ["champion"] = true,                 -- main CP scene (keyboard)
-    ["champion_perks"] = true,           -- fallback name
-    ["championperks"] = true,            -- defensive variants
+    ["champion"] = true,
+    ["champion_perks"] = true,
+    ["championperks"] = true,
     ["championperkskeyboard"] = true,
     ["championperksgamepad"] = true,
     ["gamepad_champion_perks_root"] = true
@@ -43,25 +39,21 @@ local function IsBlockedSceneName(sceneName)
     if BLOCKED_SCENES[sceneName] then
         return true
     end
-    -- Defensive: any scene name containing "champion"
     return string.find(sceneName, "champion", 1, true) ~= nil
 end
 
--- Install hooks
 local function InstallHooks()
     if Rule._hooksInstalled then return end
 
-    -- Intercept attempts to show the CP scene from anywhere (menus, keybind, API).
     ZO_PreHook(SCENE_MANAGER, "Show", function(_, sceneName)
         if not Rule.active then return false end
         if IsBlockedSceneName(sceneName) then
             Announce()
-            return true -- block
+            return true
         end
         return false
     end)
 
-    -- If some other addon/flow forces the scene open, slam it shut.
     local function AttachCloseOnShow(sceneName)
         local scene = SCENE_MANAGER and SCENE_MANAGER:GetScene(sceneName)
         if not scene then return end
@@ -73,14 +65,11 @@ local function InstallHooks()
         end)
     end
 
-    -- Attach to known scene names (if they exist in this client)
     for name in pairs(BLOCKED_SCENES) do
         AttachCloseOnShow(name)
     end
-    -- Also attach to the canonical "champion" scene if present
     AttachCloseOnShow("champion")
 
-    -- Defensive: block a few global togglers if present
     if ToggleChampionPerksScene then
         ZO_PreHook("ToggleChampionPerksScene", function()
             if Rule.active then Announce() return true end
@@ -95,7 +84,6 @@ local function InstallHooks()
     Rule._hooksInstalled = true
 end
 
--- Rule interface
 function Rule:OnEnable()
     self.active = true
     InstallHooks()
@@ -105,7 +93,6 @@ function Rule:OnDisable()
     self.active = false
 end
 
--- Register with RuleManager (deferred for load order)
 local function TryRegister()
     if HARDCORE and HARDCORE.RuleManager and HARDCORE.RuleManager.RegisterRule then
         HARDCORE.RuleManager:RegisterRule(Rule)

@@ -1,5 +1,3 @@
--- Rule_NoBank.lua
--- Disables Bank, Guild Bank, and Guild Store unconditionally while enabled.
 local Rule = {
     id = "NoBank",
     title = "No banks / guild stores",
@@ -16,7 +14,6 @@ local function Announce(what)
     ZO_Alert(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, msg)
 end
 
--- Safely close current scene if it matches one of the blocked scenes
 local function HideIf(name)
     local current = SCENE_MANAGER:GetCurrentScene()
     if current and current.GetName and current:GetName() == name then
@@ -29,7 +26,6 @@ local function InstallHooks()
         return
     end
 
-    -- 1) Scene gate: prevent the scenes from showing in the first place
     ZO_PreHook(SCENE_MANAGER, "Show", function(_, arg)
         if not Rule.active then
             return false
@@ -58,7 +54,6 @@ local function InstallHooks()
         return false
     end)
 
-    -- Defensive: if any of these scenes slip through, immediately hide them.
     local names = {"bank", "guildBank", "tradinghouse"}
     for _, sceneName in ipairs(names) do
         local scene = SCENE_MANAGER:GetScene(sceneName)
@@ -73,7 +68,6 @@ local function InstallHooks()
         end
     end
 
-    -- 2) Interaction/event gate: close interactions as soon as they’re opened
     EVENT_MANAGER:RegisterForEvent(NS .. "_BANK", EVENT_OPEN_BANK, function()
         if Rule.active then
             Announce("Bank")
@@ -124,7 +118,6 @@ function Rule:OnDisable()
     self.active = false
 end
 
--- Registration (defer-safe)
 local function TryRegister()
     if HARDCORE and HARDCORE.RuleManager and HARDCORE.RuleManager.RegisterRule then
         HARDCORE.RuleManager:RegisterRule(Rule)
