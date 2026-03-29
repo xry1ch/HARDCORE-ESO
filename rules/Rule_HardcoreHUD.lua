@@ -1,17 +1,10 @@
 local ID = "HardcoreHUD"
 
 local PEEK_FADE_IN_MS = 120
-local PEEK_HOLD_MS = 300 -- shorter hold
+local PEEK_HOLD_MS = 300
 local PEEK_FADE_OUT_MS = 120
-local PEEK_MAX_ALPHA = 0.30 -- harder to see (30%)
+local PEEK_MAX_ALPHA = 0.30
 
-local function log(msg)
-    if msg then
-        d(string.format("[HARDCORE][%s] %s", ID, tostring(msg)))
-    end
-end
-
--- Per-character saved
 local function GetSV()
     HARDCORE = HARDCORE or {}
     if not HARDCORE.hudSaved then
@@ -44,7 +37,7 @@ local function setHealthbars(enabledBool)
     SetSetting(SETTING_TYPE_NAMEPLATES, NAMEPLATE_TYPE_ALL_HEALTHBARS, toSetting(enabledBool))
 end
 
--- Combat Cues (Monster Tells / AOEs etc.)
+-- Combat Cues
 local function getCombatCues()
     return GetSetting_Bool(SETTING_TYPE_COMBAT, COMBAT_SETTING_MONSTER_TELLS_ENABLED)
 end
@@ -177,7 +170,6 @@ function Rule:OnEnable()
     EVENT_MANAGER:RegisterForEvent(ID .. "_COMBAT", EVENT_PLAYER_COMBAT_STATE, OnCombatState)
     EVENT_MANAGER:RegisterForEvent(ID .. "_WEAPON", EVENT_ACTIVE_WEAPON_PAIR_CHANGED, OnWeaponSwap)
 
-    log("Hardcore HUD active: action bar hidden with a short, faint peek on combat enter / weapon swap")
 end
 
 function Rule:OnDisable()
@@ -208,7 +200,6 @@ function Rule:OnDisable()
     sv.prev.allHealthbars = nil
     sv.prev.combatCues = nil
 
-    log("Hardcore HUD disabled: restored settings and HUD")
 end
 
 HARDCORE = HARDCORE or {}

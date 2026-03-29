@@ -1,21 +1,27 @@
 local ADDON_NAME = "HARDCORE"
 HARDCORE = HARDCORE or {}
 HARDCORE.name = ADDON_NAME
-HARDCORE.version = "0.6.0"
+HARDCORE.version = "1.0.0"
 
--- SavedVars (per account)
+-- SavedVars
 HARDCORE.defaults = {
-    hasSeenIntro = false, -- optional: first-time hint; not used for auto-open once accepted
-    isActive = false, -- whether Hardcore Mode is currently active
-    minHealthPct = 100, -- minimum health % reached this run
-    persistedMinHealthPct = 100 -- persisted minimum health % across all runs
+    hasSeenIntro = false,
+    isActive = false,
+    minHealthPct = 100,
+    persistedMinHealthPct = 100,
+    difficultyTier = 2,
+    disableVisionDim = false,
+    disableLowHealthVolume = false,
+    hasSeenCongrats = false,
+    hasDied = false
 }
 
 local COLOR = {
     white = ZO_ColorDef:New(1, 1, 1, 1),
     gold = ZO_ColorDef:New(1, 0.84, 0, 1),
     gray = ZO_ColorDef:New(0.78, 0.78, 0.78, 1),
-    dim = ZO_ColorDef:New(0.85, 0.85, 0.85, 0.65)
+    dim = ZO_ColorDef:New(0.85, 0.85, 0.85, 0.65),
+    red = ZO_ColorDef:New(0.85, 0.15, 0.15, 1)
 }
 
 local RULE_ICONS = {
@@ -44,72 +50,196 @@ local RULE_ICONS = {
 local RULES = {{
     text = "Sealed Mail",
     icon = RULE_ICONS.mail,
-    tip = "Couriers refuse your letters and parcels."
+    tip = "Couriers refuse your letters and parcels.",
+    ruleId = "NoMail"
 }, {
     text = "Restricted Crafting",
     icon = RULE_ICONS.crafting,
-    tip = "Only cooking and alchemy are permitted. All other crafting arts are forbidden on this journey."
+    tip = "Only cooking and alchemy are permitted. All other crafting arts are forbidden on this journey.",
+    ruleId = "NoCrafting"
 }, {
     text = "Humble Gear Only",
     icon = RULE_ICONS.gear,
-    tip = "You may arm yourself only with simple gear of white or green quality."
+    tip = "You may arm yourself only with simple gear of white or green quality.",
+    ruleId = "LimitedGear"
 }, {
     text = "Two-Set Limit",
     icon = RULE_ICONS.sets,
-    tip = "You may wear no more than two items from the same set; the greater set bonuses are off-limits."
+    tip = "You may wear no more than two items from the same set; the greater set bonuses are off-limits.",
+    ruleId = "LimitedSets"
 }, {
     text = "Sealed Champion Power",
     icon = RULE_ICONS.cp,
-    tip = "Champion power remains sealed; none may be gained or used."
+    tip = "Champion power remains sealed; none may be gained or used.",
+    ruleId = "NoCP"
 }, {
     text = "Adventurer's HUD",
     icon = RULE_ICONS.hud,
-    tip = "Your health bar is hidden. As your strength wanes, your vision dims and narrows, and your action bars remain concealed, revealed only in brief moments."
+    tip = "Your health bar is hidden. As your strength wanes, your vision dims and narrows, and your action bars remain concealed, revealed only in brief moments.",
+    ruleId = "HardcoreHUD"
 }, {
     text = "Blind Combat",
     icon = RULE_ICONS.enemy,
-    tip = "Foes show no names, no health bars, and no target frame. Read the battle, not the UI."
+    tip = "Foes show no names, no health bars, and no target frame. Read the battle, not the UI.",
+    ruleId = "NoHealthBar"
 }, {
     text = "No Guiding Compass",
     icon = RULE_ICONS.compass,
-    tip = "Your compass is silent, offering no markers or guidance."
+    tip = "Your compass is silent, offering no markers or guidance.",
+    ruleId = "NoCompass"
 }, {
     text = "Hidden AOE Threats",
     icon = RULE_ICONS.aoe,
-    tip = "Enemy area attacks leave no ground telegraphs. Danger must be sensed, not seen."
+    tip = "Enemy area attacks leave no ground telegraphs. Danger must be sensed, not seen.",
+    ruleId = "HardcoreHUD"
 }, {
     text = "Locked Banks",
     icon = RULE_ICONS.bank,
-    tip = "All banks remain inaccessible."
+    tip = "All banks remain inaccessible.",
+    ruleId = "NoBank"
 }, {
     text = "Closed Guild Markets",
     icon = RULE_ICONS.guildstore,
-    tip = "Guild traders and their markets are closed to you."
+    tip = "Guild traders and their markets are closed to you.",
+    ruleId = "NoBank"
 }, {
     text = "Self-Reliant Journey",
     icon = RULE_ICONS.trade,
-    tip = "No direct trade may pass between you and other adventurers."
+    tip = "No direct trade may pass between you and other adventurers.",
+    ruleId = "NoTrade"
 }, {
     text = "Irreparable Gear",
     icon = RULE_ICONS.repairkit,
-    tip = "Gear cannot be repaired; once worn down, it must be replaced."
+    tip = "Gear cannot be repaired; once worn down, it must be replaced.",
+    ruleId = "NoRepair"
 }, {
     text = "Dormant Soul Gems",
     icon = RULE_ICONS.soulgem,
-    tip = "Soul gems cannot restore weapon charges on this challenge."
+    tip = "Soul gems cannot restore weapon charges on this challenge.",
+    ruleId = "NoSoulGems"
 }, {
     text = "Sanctuary Skill Changes",
     icon = RULE_ICONS.safezone,
-    tip = "Skills may be adjusted only within towns and safe settlements."
+    tip = "Skills may be adjusted only within towns and safe settlements.",
+    ruleId = "EquipmentCitySkills"
 }, {
     text = "Bound Wayshrines",
     icon = RULE_ICONS.tp,
-    tip = "Fast travel is restricted to wayshrine-to-wayshrine only."
+    tip = "Fast travel is restricted to wayshrine-to-wayshrine only.",
+    ruleId = "LimitedTP"
 }, {
     text = "One Life Run",
     icon = RULE_ICONS.permadeath,
-    tip = "DEATH = DELETE"
+    tip = "DEATH = DELETE",
+    alwaysOn = true
 }}
+
+-- Difficulty tiers (slider presets)
+local DIFFICULTY_TIERS = {
+    [1] = "|t24:24:/esoui/art/armory/buildicons/buildicon_58.dds|t  Novice",
+    [2] = "|t24:24:/esoui/art/armory/buildicons/buildicon_39.dds|t  Adept",
+    [3] = "|t24:24:/esoui/art/armory/buildicons/buildicon_34.dds|t  Master",
+    [4] = "|t24:24:/esoui/art/armory/buildicons/buildicon_18.dds|t  Legendary"
+}
+
+local TIER_RULE_IDS = {
+    [1] = {"HardcoreHUD", "NoCompass", "LimitedTP"},
+    [2] = {"HardcoreHUD", "NoCompass", "LimitedTP", "NoTrade", "NoBank", "NoCrafting", "NoSoulGems", "NoMail"},
+    [3] = {"HardcoreHUD", "NoCompass", "LimitedTP", "NoTrade", "NoBank", "NoCrafting", "NoSoulGems", "NoHealthBar",
+           "NoCP", "NoMail"},
+    [4] = {"HardcoreHUD", "NoCompass", "LimitedTP", "NoTrade", "NoBank", "NoCrafting", "NoSoulGems", "NoHealthBar",
+           "NoCP", "LimitedGear", "LimitedSets", "NoRepair", "EquipmentCitySkills", "NoMail"}
+}
+
+local function BuildSet(arr)
+    local s = {}
+    for _, id in ipairs(arr or {}) do
+        s[id] = true
+    end
+    return s
+end
+
+local function GetRulesSV()
+    HARDCORE = HARDCORE or {}
+    if not HARDCORE.rulesSaved then
+        HARDCORE.rulesSaved = ZO_SavedVars:NewCharacterIdSettings("HARDCORE_Rules_SV", 1, nil, {
+            enabled = {}
+        })
+    end
+    HARDCORE.rulesSaved.enabled = HARDCORE.rulesSaved.enabled or {}
+    return HARDCORE.rulesSaved
+end
+function HARDCORE.SetDifficultySliderEnabled(enabled)
+    if not HARDCORE.difficultySlider then
+        return
+    end
+
+    HARDCORE.difficultySlider:SetEnabled(enabled)
+
+    HARDCORE.difficultySlider:SetAlpha(enabled and 1 or 0.35)
+
+    HARDCORE.difficultySlider:SetMouseEnabled(enabled)
+end
+
+function HARDCORE.ApplyDifficultyPreset(tier)
+    tier = zo_clamp(tonumber(tier) or 1, 1, 4)
+    HARDCORE.saved.difficultyTier = tier
+
+    local sv = GetRulesSV()
+    local enabledSet = BuildSet(TIER_RULE_IDS[tier])
+
+    if HARDCORE.RuleManager and HARDCORE.RuleManager.ForEachRule then
+        HARDCORE.RuleManager:ForEachRule(function(id, _rule)
+            sv.enabled[id] = enabledSet[id] == true
+        end)
+    else
+        for id in pairs(sv.enabled) do
+            sv.enabled[id] = enabledSet[id] == true
+        end
+        for id in pairs(enabledSet) do
+            sv.enabled[id] = true
+        end
+    end
+
+    HARDCORE.RefreshDifficultyUI()
+end
+
+function HARDCORE.RefreshDifficultyUI()
+    if not HARDCORE._ruleRows then
+        return
+    end
+    local tier = (HARDCORE.saved and HARDCORE.saved.difficultyTier) or 1
+    local enabledSet = BuildSet(TIER_RULE_IDS[tier])
+
+    if HARDCORE.difficultyLabel then
+        HARDCORE.difficultyLabel:SetText(DIFFICULTY_TIERS[tier] or ("Tier " .. tostring(tier)))
+    end
+    if HARDCORE.difficultySlider then
+        HARDCORE.difficultySlider:SetValue(tier)
+    end
+
+    for _, row in ipairs(HARDCORE._ruleRows) do
+        local r = row._ruleData
+        local isAlways = r and r.alwaysOn
+        local active = isAlways or ((r and r.ruleId and enabledSet[r.ruleId]) == true)
+
+        if row._icon then
+            row._icon:SetAlpha(active and 0.95 or 0.25)
+        end
+        if row._label then
+            if active then
+                row._label:SetColor(COLOR.white:UnpackRGBA())
+            else
+                row._label:SetColor(COLOR.dim:UnpackRGBA())
+            end
+        end
+        if row._bg then
+            row._bg:SetAlpha(active and 0.18 or 0.05)
+        end
+
+        row:SetMouseEnabled(active or isAlways)
+    end
+end
 
 local function ShowTip(ctrl, text)
     if not text or text == "" then
@@ -131,16 +261,18 @@ end
 local function HARDCORE_GetPlayerClassIngameIcon()
     local classId = GetUnitClassId("player")
     local classIndex = GetClassIndexById(classId)
-    if not classIndex then return nil end
+    if not classIndex then
+        return nil
+    end
 
-    -- GetClassInfo returns (classId, lore, normalIconKeyboard, pressedIconKeyboard, mouseoverIconKeyboard,
-    -- isSelectable, ingameIconKeyboard, ingameIconGamepad, ...)
     local _, _, _, _, _, _, ingameIconKeyboard = GetClassInfo(classIndex)
     return ingameIconKeyboard
 end
 
 function HARDCORE.UpdateActiveStatsUI()
-    if not HARDCORE.activeStats then return end
+    if not HARDCORE.activeStats then
+        return
+    end
 
     if not (HARDCORE.saved and HARDCORE.saved.isActive) then
         HARDCORE.activeStats:SetHidden(true)
@@ -159,25 +291,31 @@ function HARDCORE.UpdateActiveStatsUI()
         HARDCORE.activeStats.levelLabel:SetText(string.format("Lv %d", lvl))
     end
 
-    -- Display the persisted minimum health reached across all runs
+    -- persisted minimum health reached
     local minPct = (HARDCORE.saved and HARDCORE.saved.persistedMinHealthPct) or 100
     if HARDCORE.activeStats.minHpLabel then
         HARDCORE.activeStats.minHpLabel:SetText(string.format("%d%%", minPct))
     end
 end
 
-
-
 local MINHP_EVENT_NAME = ADDON_NAME .. "_MinHP"
 
 local function HARDCORE_OnPowerUpdate(_, unitTag, powerIndex, powerType, powerValue, powerMax, powerEffectiveMax)
-    if unitTag ~= "player" then return end
-    if powerType ~= POWERTYPE_HEALTH then return end
+    if unitTag ~= "player" then
+        return
+    end
+    if powerType ~= POWERTYPE_HEALTH then
+        return
+    end
 
-    if not (HARDCORE.saved and HARDCORE.saved.isActive) then return end
+    if not (HARDCORE.saved and HARDCORE.saved.isActive) then
+        return
+    end
 
     local cur, maxVal = GetUnitPower("player", POWERTYPE_HEALTH)
-    if not maxVal or maxVal <= 0 then return end
+    if not maxVal or maxVal <= 0 then
+        return
+    end
 
     local pct = zo_floor((cur / maxVal) * 100 + 0.5)
 
@@ -189,7 +327,6 @@ local function HARDCORE_OnPowerUpdate(_, unitTag, powerIndex, powerType, powerVa
 
     if pct < prev then
         HARDCORE.saved.minHealthPct = pct
-        -- Also update the persisted value to track the lowest ever reached
         if not HARDCORE.saved.persistedMinHealthPct or pct < HARDCORE.saved.persistedMinHealthPct then
             HARDCORE.saved.persistedMinHealthPct = pct
         end
@@ -213,7 +350,6 @@ function HARDCORE.BeginChallengeRun()
     end
     sv.isActive = true
     sv.minHealthPct = 100
-    -- Preserve the persisted minimum health from previous runs
     if not sv.persistedMinHealthPct then
         sv.persistedMinHealthPct = 100
     end
@@ -222,7 +358,6 @@ function HARDCORE.BeginChallengeRun()
         HARDCORE.RuleManager:SetActive(true)
     end
 
-    -- ✅ Close the intro/acceptance window
     if HARDCORE.ToggleIntro then
         HARDCORE.ToggleIntro(false)
     end
@@ -247,7 +382,6 @@ local function DeactivateMenuButton()
         ZO_MenuBar_ClearSelection(bar)
     end
 end
-
 
 local function ActivateMenuButton()
     local bar = GetMainMenuBar()
@@ -274,8 +408,13 @@ local function AddHardcoreMainMenuButton()
             local bar = MAIN_MENU_KEYBOARD and MAIN_MENU_KEYBOARD.categoryBar
 
             if HARDCORE.saved and HARDCORE.saved.isActive then
-                ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.ABILITY_SKILL_PURCHASED,
-                    "HARDCORE: Challenge is active.")
+                if GetUnitLevel("player") >= 50 then
+                    HARDCORE.ShowCongratulationsWindow()
+                    if bar then ZO_MenuBar_ClearSelection(bar) end
+                else
+                    ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.ABILITY_SKILL_PURCHASED,
+                        "HARDCORE: Challenge is active.")
+                end
             else
                 if HARDCORE.ToggleIntro then
                     HARDCORE.ToggleIntro()
@@ -306,7 +445,6 @@ local function AddHardcoreMainMenuButton()
     HARDCORE._mainMenuBtnAdded = true
 end
 
--- Register once per session when player finishes loading in
 EVENT_MANAGER:RegisterForEvent("HARDCORE_MainMenuBtn", EVENT_PLAYER_ACTIVATED, function()
     AddHardcoreMainMenuButton()
 end)
@@ -370,7 +508,7 @@ local function CreateIntroWindow()
     win:SetResizeHandleSize(0)
     win:SetHidden(true)
     win:SetAnchor(CENTER, GuiRoot, CENTER, 0, -40)
-    win:SetDimensions(900, 480)
+    win:SetDimensions(900, 555)
 
     local frame = wm:CreateControl(nil, win, CT_BACKDROP)
     frame:SetAnchorFill()
@@ -456,8 +594,36 @@ local function CreateIntroWindow()
     sub:SetText("Accept the challenge to enable the ruleset on this character.")
     HARDCORE.subtitle = sub
 
+    -- Difficulty preset slider
+    HARDCORE._ruleRows = {}
+    local tier = (HARDCORE.saved and HARDCORE.saved.difficultyTier) or 1
+
+    local diffLabel = wm:CreateControl(nil, inner, CT_LABEL)
+    diffLabel:SetAnchor(TOP, sub, BOTTOM, 0, 10)
+    diffLabel:SetFont("$(MEDIUM_FONT)|18|soft-shadow-thin")
+    diffLabel:SetHorizontalAlignment(TEXT_ALIGN_CENTER)
+    diffLabel:SetColor(COLOR.gold:UnpackRGBA())
+    HARDCORE.difficultyLabel = diffLabel
+
+    local slider = wm:CreateControlFromVirtual("HARDCORE_DifficultySlider", inner, "ZO_Slider")
+    slider:SetDimensions(520, 18)
+    slider:SetAnchor(TOP, diffLabel, BOTTOM, 0, 10)
+    slider:SetMinMax(1, 4)
+    slider:SetValueStep(1)
+    slider:SetAllowDraggingFromThumb(true)
+    slider:SetValue(tier)
+    HARDCORE.difficultySlider = slider
+
+    slider:SetHandler("OnValueChanged", function(_, value, eventReason)
+        if eventReason == EVENT_REASON_HARDWARE then
+            local v = zo_round(value)
+            slider:SetValue(v) -- snap
+            HARDCORE.ApplyDifficultyPreset(v)
+        end
+    end)
+
     local scroll = wm:CreateControlFromVirtual("HARDCORE_RulesScroll", inner, "ZO_ScrollContainer")
-    scroll:SetAnchor(TOPLEFT, inner, TOPLEFT, 24, 120)
+    scroll:SetAnchor(TOPLEFT, inner, TOPLEFT, 24, 200)
     scroll:SetDimensions(852, 280)
     local scrollChild = scroll:GetNamedChild("ScrollChild")
 
@@ -474,6 +640,11 @@ local function CreateIntroWindow()
         rowCtrl:SetDimensions(COL_W - 10, ROW_H)
         rowCtrl:SetMouseEnabled(true)
 
+        local bg = wm:CreateControl(nil, rowCtrl, CT_BACKDROP)
+        bg:SetAnchorFill()
+        bg:SetCenterColor(0, 0, 0, 0.18)
+        bg:SetEdgeColor(1, 1, 1, 0.04)
+
         local icon = wm:CreateControl(nil, rowCtrl, CT_TEXTURE)
         icon:SetDimensions(ICON, ICON)
         icon:SetAnchor(LEFT, rowCtrl, LEFT, 4, 0)
@@ -487,13 +658,23 @@ local function CreateIntroWindow()
         label:SetColor(COLOR.white:UnpackRGBA())
         label:SetWrapMode(TEXT_WRAP_MODE_ELLIPSIS)
 
+        rowCtrl._bg = bg
+        rowCtrl._icon = icon
+        rowCtrl._label = label
+        rowCtrl._ruleData = rule
+        table.insert(HARDCORE._ruleRows, rowCtrl)
+
         rowCtrl:SetHandler("OnMouseEnter", function()
             label:SetColor(COLOR.gold:UnpackRGBA())
             ShowTip(rowCtrl, rule.tip)
         end)
         rowCtrl:SetHandler("OnMouseExit", function()
-            label:SetColor(COLOR.white:UnpackRGBA())
             HideTip()
+            if HARDCORE.RefreshDifficultyUI then
+                HARDCORE.RefreshDifficultyUI()
+            else
+                label:SetColor(COLOR.white:UnpackRGBA())
+            end
         end)
 
         return rowCtrl
@@ -502,6 +683,9 @@ local function CreateIntroWindow()
     for i, rule in ipairs(RULES) do
         CreateRuleRow(scrollChild, i, rule)
     end
+
+    HARDCORE.ApplyDifficultyPreset((HARDCORE.saved and HARDCORE.saved.difficultyTier) or 1)
+    HARDCORE.RefreshDifficultyUI()
 
     local function GetHUDSV()
         HARDCORE = HARDCORE or {}
@@ -541,7 +725,7 @@ local function CreateIntroWindow()
         end
     end
 
-    -- Accept / Re-enter / Surrender button (single control, dynamic behavior)
+    -- Accept / Re-enter / Surrender 
     local btn = wm:CreateControlFromVirtual("HARDCORE_ActionButton", win, "ZO_DefaultButton")
     HARDCORE.actionButton = btn
     btn:SetAnchor(BOTTOM, win, BOTTOM, 0, -18)
@@ -589,8 +773,15 @@ local function CreateIntroWindow()
 
     local function UpdateActionButton()
         btn:SetHidden(false)
-        
-        if HARDCORE.saved.isActive then
+
+        local isActive = HARDCORE.saved and HARDCORE.saved.isActive
+        if HARDCORE.SetDifficultySliderEnabled then
+            HARDCORE.SetDifficultySliderEnabled(not isActive)
+        end
+
+        if isActive then
+            btn:SetEnabled(true)
+            btn:SetState(BSTATE_NORMAL, false)
             btn:SetText("Surrender Challenge")
             btn:SetHandler("OnMouseEnter", function()
                 ShowTip(btn, "End the hardcore challenge and deactivate the rules.")
@@ -598,6 +789,7 @@ local function CreateIntroWindow()
             btn:SetHandler("OnMouseExit", HideTip)
             btn:SetHandler("OnClicked", function()
                 PlaySound(SOUNDS.NEGATIVE_CLICK)
+                HARDCORE.SetDifficultySliderEnabled(true)
                 HARDCORE.SurrenderChallenge()
                 HARDCORE.RestoreHUDSettings()
                 if HARDCORE.subtitle then
@@ -613,14 +805,31 @@ local function CreateIntroWindow()
             end)
             HARDCORE_EnableMinHpTracking()
             HARDCORE.UpdateActiveStatsUI()
+        elseif HARDCORE.saved.hasDied then
+            btn:SetEnabled(false)
+            btn:SetState(BSTATE_DISABLED, true)
+            btn:SetText("Challenge Failed")
+            btn:SetHandler("OnMouseEnter", function()
+                ShowTip(btn, "Your character has fallen. The challenge cannot be reactivated.")
+            end)
+            btn:SetHandler("OnMouseExit", HideTip)
+            btn:SetHandler("OnClicked", nil)
+            HARDCORE_DisableMinHpTracking()
+            if HARDCORE.activeStats then
+                HARDCORE.activeStats:SetHidden(true)
+            end
         else
+            btn:SetEnabled(true)
+            btn:SetState(BSTATE_NORMAL, false)
             btn:SetText(HARDCORE.saved.hasSeenIntro and "Re-enter Challenge" or "Accept Challenge")
             btn:SetHandler("OnMouseEnter", function()
                 ShowTip(btn, "Enable Hardcore Mode on this character.")
             end)
             btn:SetHandler("OnMouseExit", HideTip)
             btn:SetHandler("OnClicked", function()
-                if HARDCORE_HasAnyChampionSlotted() then
+                local tier = (HARDCORE.saved and tonumber(HARDCORE.saved.difficultyTier)) or 1
+
+                if tier >= 3 and HARDCORE_HasAnyChampionSlotted() then
                     PlaySound(SOUNDS.NEGATIVE_CLICK)
                     HARDCORE_ShowCPBlockedDialog()
                     return
@@ -630,6 +839,7 @@ local function CreateIntroWindow()
                 PlaySound(SOUNDS.INSTANCE_SHUTDOWN)
                 PlaySound(SOUNDS.QUEST_ACCEPTED)
                 PlaySound(SOUNDS.ENDLESS_DUNGEON_SCORE_FINAL_FLIP)
+                HARDCORE.SetDifficultySliderEnabled(false)
                 AnnounceTrialBegins()
                 HARDCORE.saved.hasSeenIntro = true
                 HARDCORE.SaveHUDSettings()
@@ -649,7 +859,9 @@ local function CreateIntroWindow()
                 HARDCORE.ToggleIntro()
             end)
             HARDCORE_DisableMinHpTracking()
-            if HARDCORE.activeStats then HARDCORE.activeStats:SetHidden(true) end
+            if HARDCORE.activeStats then
+                HARDCORE.activeStats:SetHidden(true)
+            end
         end
     end
 
@@ -681,6 +893,9 @@ function HARDCORE.ToggleIntro(playSound)
     local hidden = HARDCORE.window:IsHidden()
     if hidden then
         HARDCORE.window:SetHidden(false)
+        if HARDCORE.RefreshDifficultyUI then
+            HARDCORE.RefreshDifficultyUI()
+        end
         if HARDCORE.fadeIn then
             HARDCORE.fadeIn()
         end
@@ -690,6 +905,8 @@ function HARDCORE.ToggleIntro(playSound)
         if HARDCORE.subtitle then
             if HARDCORE.saved.isActive then
                 HARDCORE.subtitle:SetText("HARDCORE rules are active on this character.")
+            elseif HARDCORE.saved.hasDied then
+                HARDCORE.subtitle:SetText("This character has died. The challenge has ended permanently.")
             else
                 HARDCORE.subtitle:SetText(HARDCORE.saved.hasSeenIntro and
                                               "Hardcore Mode is inactive. You can re-enter anytime." or
@@ -697,17 +914,28 @@ function HARDCORE.ToggleIntro(playSound)
             end
         end
         ActivateMenuButton()
+        SetGameCameraUIMode(true)
         if playSound ~= false then
             PlaySound(SOUNDS.SKILL_XP_DARK_FISSURE_CLOSED)
         end
     else
         HARDCORE.window:SetHidden(true)
         DeactivateMenuButton()
+        SetGameCameraUIMode(false)
     end
 end
 
 local function RegisterSlash()
     SLASH_COMMANDS["/hc"] = function()
+        if HARDCORE.saved and HARDCORE.saved.isActive and GetUnitLevel("player") >= 50 then
+            HARDCORE.ShowCongratulationsWindow()
+            return
+        end
+
+        if HARDCORE.saved and HARDCORE.saved.hasDied then
+            ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, "HARDCORE: Challenge failed. You cannot reactivate it.")
+        end
+
         if not HARDCORE.window then
             CreateIntroWindow()
         end
@@ -718,6 +946,7 @@ local function RegisterSlash()
         if HARDCORE.UpdateActionButton then
             HARDCORE.UpdateActionButton()
         end
+        SetGameCameraUIMode(true)
         PlaySound(SOUNDS.SKILL_XP_DARK_FISSURE_CLOSED)
     end
 end
@@ -741,6 +970,11 @@ local function OnAddOnLoaded(event, addonName)
             HARDCORE.saved.persistedMinHealthPct = 100
         end
         HARDCORE_EnableMinHpTracking()
+        zo_callLater(function()
+            if HARDCORE.SetDifficultySliderEnabled then
+                HARDCORE.SetDifficultySliderEnabled(false)
+            end
+        end, 100)
     end
 
     if HARDCORE.RuleManager and HARDCORE.RuleManager.Init then
@@ -748,6 +982,17 @@ local function OnAddOnLoaded(event, addonName)
     end
     local lam = LibAddonMenu2
     if lam then
+        local function RefreshNoHealthBarOptions()
+            local rm = HARDCORE.RuleManager
+            if not (rm and rm.GetRule) then
+                return
+            end
+            local rule = rm:GetRule("NoHealthBar")
+            if rule and rule.RefreshOptions then
+                rule:RefreshOptions()
+            end
+        end
+
         local panelData = {
             type = "panel",
             name = "HARDCORE",
@@ -759,14 +1004,32 @@ local function OnAddOnLoaded(event, addonName)
         }
         lam:RegisterAddonPanel("HARDCORE_LAM", panelData)
         lam:RegisterOptionControls("HARDCORE_LAM", {{
-            type = "description",
-            text = "Open the rules window with /hc. Accept to enable the challenge."
-        }, {
-            type = "button",
-            name = "Show Intro",
+            type = "checkbox",
+            name = "Disable vision dim",
+            tooltip = "Hide the health bar but skip the screen darkening/vignette effect.",
             width = "full",
-            func = function()
-                HARDCORE.ToggleIntro()
+            getFunc = function()
+                return HARDCORE.saved and HARDCORE.saved.disableVisionDim
+            end,
+            setFunc = function(val)
+                if HARDCORE.saved then
+                    HARDCORE.saved.disableVisionDim = val and true or false
+                end
+                RefreshNoHealthBarOptions()
+            end
+        }, {
+            type = "checkbox",
+            name = "Disable low-health volume drop",
+            tooltip = "Prevent audio volume from being reduced when your health is low.",
+            width = "full",
+            getFunc = function()
+                return HARDCORE.saved and HARDCORE.saved.disableLowHealthVolume
+            end,
+            setFunc = function(val)
+                if HARDCORE.saved then
+                    HARDCORE.saved.disableLowHealthVolume = val and true or false
+                end
+                RefreshNoHealthBarOptions()
             end
         }})
     end
@@ -774,12 +1037,276 @@ local function OnAddOnLoaded(event, addonName)
     CreateIntroWindow()
     RegisterSlash()
 
-    if not HARDCORE.saved.acceptedAt then
+    if HARDCORE.saved.isActive and GetUnitLevel("player") >= 50 and not HARDCORE.saved.hasSeenCongrats then
+        zo_callLater(function()
+            HARDCORE.ShowCongratulationsWindow()
+        end, 2000)
+    end
+
+    if not (HARDCORE.saved.hasSeenIntro or HARDCORE.saved.isActive) then
         zo_callLater(function()
             HARDCORE.ToggleIntro(false)
         end, 600)
     end
 
 end
+
+EVENT_MANAGER:RegisterForEvent(ADDON_NAME, EVENT_UNIT_DEATH_STATE_CHANGED, function(_, unitTag, isDead)
+    if unitTag ~= "player" then
+        return
+    end
+
+    if isDead and HARDCORE.saved and HARDCORE.saved.isActive then
+        HARDCORE.saved.hasDied = true
+        HARDCORE.SurrenderChallenge()
+        HARDCORE.RestoreHUDSettings()
+        HARDCORE.ShowDeathWindow()
+    end
+end)
+
+function HARDCORE.ShowCongratulationsWindow()
+    if HARDCORE.congratsWindow then
+        HARDCORE.congratsWindow:SetHidden(false)
+        return
+    end
+
+    local wm = WINDOW_MANAGER
+    local win = wm:CreateTopLevelWindow("HARDCORE_CongratsWindow")
+    HARDCORE.congratsWindow = win
+    win:SetMovable(false)
+    win:SetMouseEnabled(true)
+    win:SetClampedToScreen(true)
+    win:SetResizeHandleSize(0)
+    win:SetAnchor(CENTER, GuiRoot, CENTER, 0, -40)
+    win:SetDimensions(750, 480)
+
+    local frame = wm:CreateControl(nil, win, CT_BACKDROP)
+    frame:SetAnchorFill()
+    frame:SetCenterColor(0, 0, 0, 0.88)
+    frame:SetEdgeTexture("/esoui/art/chatwindow/chat_bg_edge.dds", 32, 4, 4)
+    frame:SetEdgeColor(0.9, 0.85, 0.65, 1)
+
+    local inner = wm:CreateControl("HARDCORE_CongratsInner", win, CT_CONTROL)
+    inner:SetAnchor(TOPLEFT, win, TOPLEFT, 8, 8)
+    inner:SetAnchor(BOTTOMRIGHT, win, BOTTOMRIGHT, -8, -8)
+
+    local bg = wm:CreateControl("HARDCORE_CongratsInnerBG", inner, CT_TEXTURE)
+    bg:SetAnchorFill(inner)
+    bg:SetTexture("/esoui/art/loadingscreens/loadscreen_pantherfangchapel_01.dds")
+    bg:SetTextureCoords(0, 1, 0, 1)
+    bg:SetDrawTier(DT_LOW)
+    bg:SetAlpha(0.60)
+    bg:SetBlendMode(TEX_BLEND_COLOR_ALPHA)
+
+    local wash = wm:CreateControl("HARDCORE_CongratsInnerWash", inner, CT_BACKDROP)
+    wash:SetAnchorFill(inner)
+    wash:SetCenterColor(0, 0, 0, 0.40)
+    wash:SetEdgeColor(0, 0, 0, 0)
+    wash:SetDrawTier(DT_LOW)
+    wash:SetDrawLayer(DL_BACKGROUND)
+    wash:SetDrawLevel(1)
+
+    local subtleEdge = wm:CreateControl("HARDCORE_CongratsInnerEdge", inner, CT_BACKDROP)
+    subtleEdge:SetAnchorFill(inner)
+    subtleEdge:SetCenterColor(0, 0, 0, 0)
+    subtleEdge:SetEdgeTexture("/esoui/art/miscellaneous/centerscreen_announceEdge.dds", 32, 4, 4)
+    subtleEdge:SetEdgeColor(0, 0, 0, 0.25)
+    subtleEdge:SetDrawLayer(DL_OVERLAY)
+    subtleEdge:SetDrawLevel(1)
+
+    local function Corner(name, tex, anchorPoint, xOff, yOff, w, h)
+        local t = wm:CreateControl(name, inner, CT_TEXTURE)
+        t:SetTexture(tex)
+        t:SetDimensions(w or 16, h or 16)
+        t:SetBlendMode(TEX_BLEND_ALPHA)
+        t:SetAlpha(0.9)
+        t:SetDrawLayer(DL_OVERLAY)
+        t:SetDrawLevel(5)
+        t:SetAnchor(anchorPoint, inner, anchorPoint, xOff or 0, yOff or 0)
+        return t
+    end
+
+    Corner("HARDCORE_CongratsCornerTL", "/esoui/art/reticle/border_topleft.dds", TOPLEFT, -1, -1, 16, 16)
+    Corner("HARDCORE_CongratsCornerTR", "/esoui/art/reticle/border_topright.dds", TOPRIGHT, 1, -1, 16, 16)
+    Corner("HARDCORE_CongratsCornerBL", "/esoui/art/reticle/border_bottomleft.dds", BOTTOMLEFT, -1, 1, 16, 16)
+    Corner("HARDCORE_CongratsCornerBR", "/esoui/art/reticle/border_bottomright.dds", BOTTOMRIGHT, 1, 1, 16, 16)
+
+    local title = wm:CreateControl(nil, inner, CT_LABEL)
+    title:SetAnchor(TOP, inner, TOP, 0, 40)
+    title:SetFont("$(BOLD_FONT)|42|soft-shadow-thick")
+    title:SetHorizontalAlignment(TEXT_ALIGN_CENTER)
+    title:SetText("CONGRATULATIONS!")
+    title:SetColor(COLOR.gold:UnpackRGBA())
+
+    local divider = wm:CreateControl(nil, inner, CT_TEXTURE)
+    divider:SetAnchor(TOP, title, BOTTOM, 0, 12)
+    divider:SetDimensions(520, 8)
+    divider:SetTexture("/esoui/art/miscellaneous/horizontaldivider.dds")
+    divider:SetAlpha(0.55)
+
+    local subTitle = wm:CreateControl(nil, inner, CT_LABEL)
+    subTitle:SetAnchor(TOP, divider, BOTTOM, 0, 20)
+    subTitle:SetFont("$(MEDIUM_FONT)|24|soft-shadow-thin")
+    subTitle:SetHorizontalAlignment(TEXT_ALIGN_CENTER)
+    subTitle:SetColor(COLOR.white:UnpackRGBA())
+    subTitle:SetText("You have reached Level 50\nand completed the Hardcore Challenge!")
+
+    local desc = wm:CreateControl(nil, inner, CT_LABEL)
+    desc:SetAnchor(TOP, subTitle, BOTTOM, 0, 45)
+    desc:SetFont("$(MEDIUM_FONT)|20")
+    desc:SetHorizontalAlignment(TEXT_ALIGN_CENTER)
+    desc:SetColor(COLOR.gray:UnpackRGBA())
+    desc:SetText("Your trial is over. You may now choose to continue\nyour journey as a normal adventurer.")
+
+    local btn = wm:CreateControlFromVirtual("HARDCORE_CongratsActionButton", win, "ZO_DefaultButton")
+    btn:SetAnchor(BOTTOM, win, BOTTOM, 0, -35)
+    btn:SetDimensions(280, 44)
+    btn:SetText("End Challenge & Continue")
+    btn:SetHandler("OnClicked", function()
+        HARDCORE.saved.hasSeenCongrats = true
+        HARDCORE.SurrenderChallenge()
+        HARDCORE.RestoreHUDSettings()
+        win:SetHidden(true)
+        SetGameCameraUIMode(false)
+        ZO_Alert(UI_ALERT_CATEGORY_ALERT, SOUNDS.UI_GIFT_INVENTORY_VIEW_OPEN, "Hardcore Challenge Completed!")
+        zo_callLater(function() ReloadUI() end, 500)
+    end)
+
+    local close = wm:CreateControlFromVirtual("HARDCORE_CongratsClose", win, "ZO_CloseButton")
+    close:SetAnchor(TOPRIGHT, win, TOPRIGHT, -18, 14)
+    close:SetHandler("OnClicked", function()
+        HARDCORE.saved.hasSeenCongrats = true
+        win:SetHidden(true)
+        SetGameCameraUIMode(false)
+    end)
+
+    SetGameCameraUIMode(true)
+    PlaySound(SOUNDS.UI_GIFT_INVENTORY_VIEW_OPEN)
+end
+
+function HARDCORE.ShowDeathWindow()
+    if HARDCORE.deathWindow then
+        HARDCORE.deathWindow:SetHidden(false)
+        return
+    end
+
+    local wm = WINDOW_MANAGER
+    local win = wm:CreateTopLevelWindow("HARDCORE_DeathWindow")
+    HARDCORE.deathWindow = win
+    win:SetMovable(false)
+    win:SetMouseEnabled(true)
+    win:SetClampedToScreen(true)
+    win:SetResizeHandleSize(0)
+    win:SetAnchor(CENTER, GuiRoot, CENTER, 0, -40)
+    win:SetDimensions(750, 480)
+
+    local frame = wm:CreateControl(nil, win, CT_BACKDROP)
+    frame:SetAnchorFill()
+    frame:SetCenterColor(0.05, 0, 0, 0.88)
+    frame:SetEdgeTexture("/esoui/art/chatwindow/chat_bg_edge.dds", 32, 4, 4)
+    frame:SetEdgeColor(0.8, 0.15, 0.15, 1)
+
+    local inner = wm:CreateControl("HARDCORE_DeathInner", win, CT_CONTROL)
+    inner:SetAnchor(TOPLEFT, win, TOPLEFT, 8, 8)
+    inner:SetAnchor(BOTTOMRIGHT, win, BOTTOMRIGHT, -8, -8)
+
+    local bg = wm:CreateControl("HARDCORE_DeathInnerBG", inner, CT_TEXTURE)
+    bg:SetAnchorFill(inner)
+    bg:SetTexture("/esoui/art/loadingscreens/loadscreen_circus_of_the_cheerful_slaughter_01.dds")
+    bg:SetTextureCoords(0, 1, 0, 1)
+    bg:SetDrawTier(DT_LOW)
+    bg:SetAlpha(0.60)
+    bg:SetColor(0.8, 0.2, 0.2, 1)
+    bg:SetBlendMode(TEX_BLEND_COLOR_ALPHA)
+
+    local wash = wm:CreateControl("HARDCORE_DeathInnerWash", inner, CT_BACKDROP)
+    wash:SetAnchorFill(inner)
+    wash:SetCenterColor(0.2, 0, 0, 0.50)
+    wash:SetEdgeColor(0, 0, 0, 0)
+    wash:SetDrawTier(DT_LOW)
+    wash:SetDrawLayer(DL_BACKGROUND)
+    wash:SetDrawLevel(1)
+
+    local subtleEdge = wm:CreateControl("HARDCORE_DeathInnerEdge", inner, CT_BACKDROP)
+    subtleEdge:SetAnchorFill(inner)
+    subtleEdge:SetCenterColor(0, 0, 0, 0)
+    subtleEdge:SetEdgeTexture("/esoui/art/miscellaneous/centerscreen_announceEdge.dds", 32, 4, 4)
+    subtleEdge:SetEdgeColor(0.8, 0.15, 0.15, 0.35)
+    subtleEdge:SetDrawLayer(DL_OVERLAY)
+    subtleEdge:SetDrawLevel(1)
+
+    local function Corner(name, tex, anchorPoint, xOff, yOff, w, h)
+        local t = wm:CreateControl(name, inner, CT_TEXTURE)
+        t:SetTexture(tex)
+        t:SetDimensions(w or 16, h or 16)
+        t:SetBlendMode(TEX_BLEND_ALPHA)
+        t:SetAlpha(0.9)
+        t:SetDrawLayer(DL_OVERLAY)
+        t:SetDrawLevel(5)
+        t:SetAnchor(anchorPoint, inner, anchorPoint, xOff or 0, yOff or 0)
+        return t
+    end
+
+    Corner("HARDCORE_DeathCornerTL", "/esoui/art/reticle/border_topleft.dds", TOPLEFT, -1, -1, 16, 16)
+    Corner("HARDCORE_DeathCornerTR", "/esoui/art/reticle/border_topright.dds", TOPRIGHT, 1, -1, 16, 16)
+    Corner("HARDCORE_DeathCornerBL", "/esoui/art/reticle/border_bottomleft.dds", BOTTOMLEFT, -1, 1, 16, 16)
+    Corner("HARDCORE_DeathCornerBR", "/esoui/art/reticle/border_bottomright.dds", BOTTOMRIGHT, 1, 1, 16, 16)
+
+    local title = wm:CreateControl(nil, inner, CT_LABEL)
+    title:SetAnchor(TOP, inner, TOP, 0, 40)
+    title:SetFont("$(BOLD_FONT)|42|soft-shadow-thick")
+    title:SetHorizontalAlignment(TEXT_ALIGN_CENTER)
+    title:SetText("YOU DIED")
+    title:SetColor(COLOR.red:UnpackRGBA())
+
+    local divider = wm:CreateControl(nil, inner, CT_TEXTURE)
+    divider:SetAnchor(TOP, title, BOTTOM, 0, 12)
+    divider:SetDimensions(520, 8)
+    divider:SetTexture("/esoui/art/miscellaneous/horizontaldivider.dds")
+    divider:SetAlpha(0.55)
+    divider:SetColor(COLOR.red:UnpackRGBA())
+
+    local subTitle = wm:CreateControl(nil, inner, CT_LABEL)
+    subTitle:SetAnchor(TOP, divider, BOTTOM, 0, 20)
+    subTitle:SetFont("$(MEDIUM_FONT)|24|soft-shadow-thin")
+    subTitle:SetHorizontalAlignment(TEXT_ALIGN_CENTER)
+    subTitle:SetColor(COLOR.white:UnpackRGBA())
+    subTitle:SetText("Your Hardcore journey has met a tragic end.")
+
+    local desc = wm:CreateControl(nil, inner, CT_LABEL)
+    desc:SetAnchor(TOP, subTitle, BOTTOM, 0, 45)
+    desc:SetFont("$(MEDIUM_FONT)|20")
+    desc:SetHorizontalAlignment(TEXT_ALIGN_CENTER)
+    desc:SetColor(COLOR.gray:UnpackRGBA())
+    desc:SetText("\nYou may continue on this character as a normal adventurer.")
+
+    local btn = wm:CreateControlFromVirtual("HARDCORE_DeathActionButton", win, "ZO_DefaultButton")
+    btn:SetAnchor(BOTTOM, win, BOTTOM, 0, -35)
+    btn:SetDimensions(280, 44)
+    btn:SetText("Accept Fate")
+    btn:SetHandler("OnClicked", function()
+        win:SetHidden(true)
+        SetGameCameraUIMode(false)
+        ZO_Alert(UI_ALERT_CATEGORY_ALERT, SOUNDS.ABILITY_SKILL_PURCHASED, "Hardcore Challenge Failed.")
+        zo_callLater(function() ReloadUI() end, 500)
+    end)
+
+    local close = wm:CreateControlFromVirtual("HARDCORE_DeathClose", win, "ZO_CloseButton")
+    close:SetAnchor(TOPRIGHT, win, TOPRIGHT, -18, 14)
+    close:SetHandler("OnClicked", function()
+        win:SetHidden(true)
+        SetGameCameraUIMode(false)
+    end)
+
+    SetGameCameraUIMode(true)
+    PlaySound(SOUNDS.ENDLESS_DUNGEON_RUN_COMPLETE)
+end
+
+EVENT_MANAGER:RegisterForEvent(ADDON_NAME, EVENT_LEVEL_UPDATE, function(_, unitTag, newLevel)
+    if unitTag ~= "player" then return end
+    if newLevel >= 50 and HARDCORE.saved.isActive and not HARDCORE.saved.hasSeenCongrats then
+        HARDCORE.ShowCongratulationsWindow()
+    end
+end)
 
 EVENT_MANAGER:RegisterForEvent(ADDON_NAME, EVENT_ADD_ON_LOADED, OnAddOnLoaded)

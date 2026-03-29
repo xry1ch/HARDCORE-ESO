@@ -1,8 +1,3 @@
---[[  HARDCORE - Rule: No Compass
-     Hides the compass while Hardcore is active. Auto-shows during boss bars.
-     Depends on the global COMPASS_FRAME/ZO_Compass controls provided by ESO UI.
-]]
-
 local Rule = {
     id = "NoCompass",
     title = "No compass",
@@ -21,13 +16,10 @@ local function HideCompassFrame(hidden)
     local frame = (COMPASS_FRAME and COMPASS_FRAME.control) or nil
     if not frame then return end
 
-    -- Hide the three child buckets (Left/Center/Right)
     for _, name in ipairs({ "Left", "Center", "Right" }) do
         local child = frame:GetNamedChild(name)
         if child then child:SetHidden(hidden) end
     end
-
-    -- Do not hide pins (other addons rely on them). Instead offset them off-screen.
     local offset = hidden and 16384 or 0
     if ZO_Compass then
         ZO_Compass:ClearAnchors()
@@ -41,7 +33,6 @@ local function BossBarActive()
 end
 
 local function ApplyDesiredState()
-    -- While the rule is enabled we want the compass hidden, except during boss bars.
     local shouldHide = not BossBarActive()
     HideCompassFrame(shouldHide)
 end
@@ -50,12 +41,10 @@ local function EnsureHook(self)
     if self._hooked or not COMPASS_FRAME or not COMPASS_FRAME.SetBossBarActive then return end
     self._origSetBossBarActive = COMPASS_FRAME.SetBossBarActive
 
-    -- Hook to force-show during boss encounters, then restore our hidden state.
     function COMPASS_FRAME:SetBossBarActive(active)
         if active then
             HideCompassFrame(false)
             if self.RefreshVisible then
-                -- keep parity with the original code path
                 self:RefreshVisible(self)
             end
             Rule._origSetBossBarActive(self, true)

@@ -9,6 +9,22 @@ local NS = "HARDCORE_NoHealthBar"
 Rule.active = false
 Rule._installed = false
 
+local originalVolume = nil
+local volumeLowered = false
+local VOLUME_LOW_HP_THRESHOLD = 0.15
+
+local function IsVisionDimDisabled()
+    return HARDCORE and HARDCORE.saved and HARDCORE.saved.disableVisionDim
+end
+
+local function IsLowHpVolumeDisabled()
+    return HARDCORE and HARDCORE.saved and HARDCORE.saved.disableLowHealthVolume
+end
+
+local function IsOnHud()
+    return SCENE_MANAGER and (SCENE_MANAGER:IsShowing("hud") or SCENE_MANAGER:IsShowing("hudui") or SCENE_MANAGER:IsShowing("gamepad_hud"))
+end
+
 -- === Tweakables ============================================================
 local MAX_DARKEN_ALPHA = 0.95 -- maximum darkness at 0% health
 local CURVE_STRENGTH = 1.40 -- >1 pushes more darkness into low health, <1 linear
@@ -18,12 +34,6 @@ local PULSE_MAX_ALPHA = 0.25 -- maximum red pulse alpha (added on top of darken)
 local PULSE_PERIOD_MS = 900 -- full in-out period
 local FADE_START_HP = 0.80 -- no darkening above 80% HP
 
-local function log(msg)
-    if msg then
-        d(string.format("[HARDCORE][%s] %s", Rule.id, tostring(msg)))
-    end
-end
-
 local function GetPlayerHealthPercent()
     local cur, max = GetUnitPower("player", POWERTYPE_HEALTH)
     if not max or max <= 0 then
@@ -31,8 +41,41 @@ local function GetPlayerHealthPercent()
     end
     return zo_clamp(cur / max, 0, 1)
 end
+
+local function LowerVolume(hp)
+    if originalVolume == nil then
+        originalVolume = GetSetting(SETTING_TYPE_AUDIO, AUDIO_SETTING_AUDIO_VOLUME)
+    end
+    
+    local healthFactor = zo_clamp(hp / VOLUME_LOW_HP_THRESHOLD, 0, 1)
+    local volumeFactor = 0.05 + (healthFactor * 0.95)
+    local newVolume = originalVolume * volumeFactor
+    
+    SetSetting(SETTING_TYPE_AUDIO, AUDIO_SETTING_AUDIO_VOLUME, tostring(newVolume))
+    volumeLowered = true
+end
+
+local function RestoreVolume()
+    if not volumeLowered or originalVolume == nil then
+        return
+    end
+    SetSetting(SETTING_TYPE_AUDIO, AUDIO_SETTING_AUDIO_VOLUME, tostring(originalVolume))
+    volumeLowered = false
+end
+
+local function ApplyVolumeFromHP(hp)
+    if IsLowHpVolumeDisabled() then
+        RestoreVolume()
+        return
+    end
+
+    if hp <= VOLUME_LOW_HP_THRESHOLD then
+        LowerVolume(hp)
+    else
+        RestoreVolume()
+    end
+end
 local function FadeFactorFromHP(hp)
-    -- 0 when hp >= FADE_START_HP; 1 when hp == 0
     local t = zo_clamp((FADE_START_HP - hp) / FADE_START_HP, 0, 1)
     return math.pow(t, CURVE_STRENGTH)
 end
@@ -75,9 +118,9 @@ local function RemoveHide()
 end
 
 -- === Fullscreen overlay ====================================================
-local overlayTLW -- top-level window (container)
-local darkMask -- solid black mask (backdrop)
-local darkVignette -- black vignette texture (subtle shape)
+local overlayTLW -- top-level window
+local darkMask -- solid black mask
+local darkVignette -- black vignette texture
 local pulseVignette -- red vignette pulse
 local pulseTimeline -- animation timeline
 
@@ -88,7 +131,6 @@ local function EnsureOverlay()
 
     local wm = WINDOW_MANAGER
     overlayTLW = wm:CreateTopLevelWindow("HARDCORE_HealthVisionOverlay")
-    -- CRITICAL: anchor to GuiRoot or the TLW is 0x0 and invisible
     overlayTLW:SetAnchorFill(GuiRoot)
     overlayTLW:SetDrawTier(DT_HIGH)
     overlayTLW:SetDrawLayer(DL_OVERLAY)
@@ -97,23 +139,20 @@ local function EnsureOverlay()
     overlayTLW:SetHidden(true)
     overlayTLW:SetMouseEnabled(false)
 
-    -- Solid black mask that actually darkens the entire screen
     darkMask = wm:CreateControl(nil, overlayTLW, CT_BACKDROP)
     darkMask:SetAnchorFill()
-    darkMask:SetAlpha(0) -- driven by health
+    darkMask:SetAlpha(0)
     darkMask:SetCenterColor(0, 0, 0, 1)
     darkMask:SetEdgeColor(0, 0, 0, 0)
     darkMask:SetEdgeTexture(nil, 1, 1, 0, 0)
 
-    -- Soft black vignette to make edges feel heavier (purely cosmetic)
     darkVignette = wm:CreateControl(nil, overlayTLW, CT_TEXTURE)
     darkVignette:SetAnchorFill()
     darkVignette:SetTexture("/esoui/art/miscellaneous/centerscreen_announceEdge.dds")
     darkVignette:SetTextureCoords(0, 1, 0, 1)
-    darkVignette:SetAlpha(0) -- follows darkMask alpha so it scales together
+    darkVignette:SetAlpha(0)
     darkVignette:SetBlendMode(TEX_BLEND_COLOR_ALPHA)
 
-    -- Low-HP red pulse layer
     pulseVignette = wm:CreateControl(nil, overlayTLW, CT_TEXTURE)
     pulseVignette:SetAnchorFill()
     pulseVignette:SetTexture("/esoui/art/miscellaneous/centerscreen_announceEdge.dds")
@@ -121,7 +160,6 @@ local function EnsureOverlay()
     pulseVignette:SetAlpha(0)
     pulseVignette:SetBlendMode(TEX_BLEND_COLOR_ALPHA)
 
-    -- Pulse animation: alpha in-out forever while below threshold
     pulseTimeline = ANIMATION_MANAGER:CreateTimeline()
     local aIn = pulseTimeline:InsertAnimation(ANIMATION_ALPHA, pulseVignette, 0)
     aIn:SetAlphaValues(PULSE_MIN_ALPHA, PULSE_MAX_ALPHA)
@@ -140,13 +178,12 @@ local function SetOverlayHidden(hidden)
 end
 
 local function ApplyOverlayAlpha(alpha)
-    -- Drive both dark layers with the same alpha for a stronger feel
     if darkMask then
         darkMask:SetAlpha(alpha)
     end
     if darkVignette then
         darkVignette:SetAlpha(alpha * 0.9)
-    end -- a touch softer than base
+    end
 end
 
 local function UpdateOverlayFromHealth()
@@ -155,12 +192,24 @@ local function UpdateOverlayFromHealth()
     end
     EnsureOverlay()
 
+    local onHud = IsOnHud()
+    if IsVisionDimDisabled() or not onHud then
+        SetOverlayHidden(true)
+        if pulseTimeline and pulseTimeline:IsPlaying() then
+            pulseTimeline:Stop()
+        end
+        pulseVignette:SetAlpha(0)
+        ApplyOverlayAlpha(0)
+        return
+    end
+
+    SetOverlayHidden(false)
+
     local hp = GetPlayerHealthPercent()
     local curve = FadeFactorFromHP(hp)
     local alpha = zo_clamp(curve * MAX_DARKEN_ALPHA, 0, MAX_DARKEN_ALPHA)
     ApplyOverlayAlpha(alpha)
 
-    -- Low HP pulse gating
     if hp <= LOW_HP_THRESHOLD then
         if pulseTimeline and not pulseTimeline:IsPlaying() then
             pulseVignette:SetAlpha(PULSE_MIN_ALPHA)
@@ -174,7 +223,6 @@ local function UpdateOverlayFromHealth()
     end
 end
 
--- Only show the overlay on HUD scenes (not while in menus/maps)
 local function HookScenes()
     local function SetupScene(sceneName)
         local scn = SCENE_MANAGER and SCENE_MANAGER:GetScene(sceneName)
@@ -198,6 +246,14 @@ local function HookScenes()
     end
     SetupScene("hud")
     SetupScene("hudui")
+    SetupScene("gamepad_hud")
+    EVENT_MANAGER:RegisterForEvent(NS .. "_SCENE_FALLBACK", EVENT_PLAYER_ACTIVATED, function()
+        if Rule.active then
+            SetOverlayHidden(false)
+            ApplyHide()
+            UpdateOverlayFromHealth()
+        end
+    end)
 end
 
 -- === Install / Events ======================================================
@@ -214,19 +270,17 @@ local function Install()
         if Rule.active then
             ApplyHide()
             UpdateOverlayFromHealth()
-            local onHud = SCENE_MANAGER and (SCENE_MANAGER:IsShowing("hud") or SCENE_MANAGER:IsShowing("hudui"))
-            SetOverlayHidden(not onHud)
+            local onHud = IsOnHud()
+            SetOverlayHidden(not onHud or IsVisionDimDisabled())
         end
     end)
 
-    -- Interface tweaks can rebuild bars
     EVENT_MANAGER:RegisterForEvent(NS .. "_SETTING", EVENT_INTERFACE_SETTING_CHANGED, function()
         if Rule.active then
             zo_callLater(ApplyHide, 50)
         end
     end)
 
-    -- Health changes: use provided values to avoid extra API calls
     EVENT_MANAGER:RegisterForEvent(NS .. "_POWER", EVENT_POWER_UPDATE,
         function(_, unitTag, powerIndex, powerType, powerValue, powerMax)
             if not Rule.active then
@@ -237,24 +291,40 @@ local function Install()
             end
             EnsureOverlay()
             local hp = (powerMax and powerMax > 0) and zo_clamp(powerValue / powerMax, 0, 1) or 1
-            local curve = FadeFactorFromHP(hp)
-            local alpha = zo_clamp(curve * MAX_DARKEN_ALPHA, 0, MAX_DARKEN_ALPHA)
-            ApplyOverlayAlpha(alpha)
+            if not IsVisionDimDisabled() then
+                local onHud = IsOnHud()
+                SetOverlayHidden(not onHud)
 
-            if hp <= LOW_HP_THRESHOLD then
-                if pulseTimeline and not pulseTimeline:IsPlaying() then
-                    pulseVignette:SetAlpha(PULSE_MIN_ALPHA)
-                    pulseTimeline:PlayFromStart()
+                if onHud then
+                    local curve = FadeFactorFromHP(hp)
+                    local alpha = zo_clamp(curve * MAX_DARKEN_ALPHA, 0, MAX_DARKEN_ALPHA)
+                    ApplyOverlayAlpha(alpha)
+
+                    if hp <= LOW_HP_THRESHOLD then
+                        if pulseTimeline and not pulseTimeline:IsPlaying() then
+                            pulseVignette:SetAlpha(PULSE_MIN_ALPHA)
+                            pulseTimeline:PlayFromStart()
+                        end
+                    else
+                        if pulseTimeline and pulseTimeline:IsPlaying() then
+                            pulseTimeline:Stop()
+                        end
+                        pulseVignette:SetAlpha(0)
+                    end
                 end
             else
+                SetOverlayHidden(true)
                 if pulseTimeline and pulseTimeline:IsPlaying() then
                     pulseTimeline:Stop()
                 end
                 pulseVignette:SetAlpha(0)
+                ApplyOverlayAlpha(0)
             end
+
+            ApplyVolumeFromHP(hp)
         end)
 
-    -- Death / revive: keep overlay consistent
+    -- Death / revive
     EVENT_MANAGER:RegisterForEvent(NS .. "_DEATH", EVENT_UNIT_DEATH_STATE_CHANGED, function(_, unitTag, isDead)
         if not Rule.active or unitTag ~= "player" then
             return
@@ -265,15 +335,15 @@ local function Install()
                 pulseTimeline:Stop()
             end
             pulseVignette:SetAlpha(0)
+            ApplyVolumeFromHP(1)
         else
             UpdateOverlayFromHealth()
         end
     end)
 
-    -- Screen resize safety (rare, but helps on resolution changes)
     EVENT_MANAGER:RegisterForEvent(NS .. "_RESIZE", EVENT_SCREEN_RESIZED, function()
         if overlayTLW then
-            overlayTLW:ClearAnchors();
+            overlayTLW:ClearAnchors()
             overlayTLW:SetAnchorFill(GuiRoot)
         end
     end)
@@ -281,18 +351,15 @@ local function Install()
     Rule._installed = true
 end
 
--- === Rule lifecycle ========================================================
 function Rule:OnEnable()
     self.active = true
     Install()
     ApplyHide()
 
-    -- Make overlay visible on HUD (hidden elsewhere), and update immediately
-    local onHud = SCENE_MANAGER and (SCENE_MANAGER:IsShowing("hud") or SCENE_MANAGER:IsShowing("hudui"))
-    SetOverlayHidden(not onHud)
+    local onHud = IsOnHud()
+    SetOverlayHidden(not onHud or IsVisionDimDisabled())
     UpdateOverlayFromHealth()
 
-    log("Player Health bar hidden. Vision overlay active and scales with missing health.")
 end
 
 function Rule:OnDisable()
@@ -306,10 +373,22 @@ function Rule:OnDisable()
     end
 
     RemoveHide()
-    log("Player Health bar restored. Vision overlay disabled.")
+    
+    ApplyVolumeFromHP(1)
+    originalVolume = nil
 end
 
--- === Registration (deferred-safe) =========================================
+function Rule:RefreshOptions()
+    if not self.active then
+        return
+    end
+
+    UpdateOverlayFromHealth()
+
+    local hp = GetPlayerHealthPercent()
+    ApplyVolumeFromHP(hp)
+end
+
 local function TryRegister()
     if HARDCORE and HARDCORE.RuleManager and HARDCORE.RuleManager.RegisterRule then
         HARDCORE.RuleManager:RegisterRule(Rule)

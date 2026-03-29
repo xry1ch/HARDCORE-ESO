@@ -46,9 +46,6 @@ local function InstallHooks()
     if worldMapScene then
         worldMapScene:RegisterCallback("StateChange", function(_, newState)
             if Rule.active and newState == SCENE_SHOWING and not IsAtWayshrine() then
-                -- No hard close; we just ensure any attempted travel is blocked.
-                -- If you want to be stricter, uncomment to auto-close:
-                -- SCENE_MANAGER:HideCurrentScene()
             end
         end)
     end

@@ -4,12 +4,6 @@ RuleManager.__index = RuleManager
 RuleManager.rules = {}
 RuleManager.enabledRuntime = {}
 
-local function log(msg)
-    if msg then
-        d(string.format("[HARDCORE] %s", tostring(msg)))
-    end
-end
-
 local function GetCharSV()
     if not HARDCORE or not HARDCORE.rulesSaved then
         HARDCORE.rulesSaved = ZO_SavedVars:NewCharacterIdSettings("HARDCORE_Rules_SV", 1, nil, {
@@ -38,7 +32,6 @@ function RuleManager:RegisterRule(rule)
             self:EnableRule(rule.id)
         end
     end
-    log("Registered rule: " .. rule.id)
 end
 
 function RuleManager:GetRule(id)
@@ -54,7 +47,7 @@ end
 local function safeCall(what, rule, fnName)
     local ok, err = pcall(rule[fnName], rule)
     if not ok then
-        log(string.format("%s failed for rule '%s': %s", what, tostring(rule.id), tostring(err)))
+        -- log(string.format("%s failed for rule '%s': %s", what, tostring(rule.id), tostring(err)))
     end
 end
 
@@ -71,7 +64,6 @@ function RuleManager:EnableRule(id)
     end
     self.enabledRuntime[id] = true
     GetCharSV().enabled[id] = true
-    log("Enabled rule: " .. id)
 end
 
 function RuleManager:DisableRule(id)
@@ -87,7 +79,6 @@ function RuleManager:DisableRule(id)
     end
     self.enabledRuntime[id] = false
     GetCharSV().enabled[id] = false
-    log("Disabled rule: " .. id)
 end
 
 function RuleManager:ApplyAll()
@@ -133,7 +124,7 @@ end
 function RuleManager:Init()
     GetCharSV()
     self:RefreshActiveState()
-    log("RuleManager initialized (active=" .. tostring(HARDCORE and HARDCORE.saved and HARDCORE.saved.isActive) .. ")")
+    -- log("RuleManager initialized (active=" .. tostring(HARDCORE and HARDCORE.saved and HARDCORE.saved.isActive) .. ")")
 end
 
 HARDCORE = HARDCORE or {}
