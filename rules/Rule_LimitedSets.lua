@@ -80,7 +80,7 @@ local function enforceLimit(recentSlot)
       if recentSlot then
         for i, slot in ipairs(slots) do
           if slot == recentSlot and count > LIMIT then
-            UnequipItem(slot)
+            RequestUnequipItem(BAG_WORN, slot)
             changed = true
             count = count - 1
             table.remove(slots, i)
@@ -91,7 +91,7 @@ local function enforceLimit(recentSlot)
 
       while count > LIMIT and #slots > 0 do
         local slot = table.remove(slots)
-        UnequipItem(slot)
+        RequestUnequipItem(BAG_WORN, slot)
         changed = true
         count = count - 1
       end
@@ -149,15 +149,4 @@ function Rule:OnDisable()
   self.active = false
 end
 
-local function TryRegister()
-  if HARDCORE and HARDCORE.RuleManager and HARDCORE.RuleManager.RegisterRule then
-    HARDCORE.RuleManager:RegisterRule(Rule)
-    EVENT_MANAGER:UnregisterForEvent(NS .. "_DEFER", EVENT_ADD_ON_LOADED)
-  end
-end
-
-if HARDCORE and HARDCORE.RuleManager then
-  TryRegister()
-else
-  EVENT_MANAGER:RegisterForEvent(NS .. "_DEFER", EVENT_ADD_ON_LOADED, TryRegister)
-end
+HARDCORE.RuleManager:RegisterRule(Rule)

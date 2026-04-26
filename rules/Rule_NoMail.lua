@@ -57,9 +57,9 @@ local function InstallHooks()
   EVENT_MANAGER:RegisterForEvent(NS.."_MAILBOX", EVENT_MAIL_OPEN_MAILBOX, function()
     if Rule.active then
       Announce()
-      pcall(function()
-        if CloseMailbox then CloseMailbox() end
-      end)
+      if CloseMailbox then
+        CloseMailbox()
+      end
 
       local current = SCENE_MANAGER:GetCurrentScene()
       if current then
@@ -83,15 +83,4 @@ function Rule:OnDisable()
   self.active = false
 end
 
-local function TryRegister()
-  if HARDCORE and HARDCORE.RuleManager and HARDCORE.RuleManager.RegisterRule then
-    HARDCORE.RuleManager:RegisterRule(Rule)
-    EVENT_MANAGER:UnregisterForEvent(NS.."_DEFER", EVENT_ADD_ON_LOADED)
-  end
-end
-
-if HARDCORE and HARDCORE.RuleManager then
-  TryRegister()
-else
-  EVENT_MANAGER:RegisterForEvent(NS.."_DEFER", EVENT_ADD_ON_LOADED, TryRegister)
-end
+HARDCORE.RuleManager:RegisterRule(Rule)

@@ -71,9 +71,9 @@ local function InstallHooks()
     EVENT_MANAGER:RegisterForEvent(NS .. "_BANK", EVENT_OPEN_BANK, function()
         if Rule.active then
             Announce("Bank")
-            pcall(function()
+            if EndInteraction then
                 EndInteraction(INTERACTION_BANK)
-            end)
+            end
             HideIf("bank")
         end
     end)
@@ -81,9 +81,9 @@ local function InstallHooks()
     EVENT_MANAGER:RegisterForEvent(NS .. "_GBANK", EVENT_OPEN_GUILD_BANK, function()
         if Rule.active then
             Announce("Guild Bank")
-            pcall(function()
-                EndInteraction(INTERACTION_GUILD_BANK)
-            end)
+            if EndInteraction then
+                EndInteraction(INTERACTION_GUILDBANK)
+            end
             HideIf("guildBank")
         end
     end)
@@ -91,18 +91,18 @@ local function InstallHooks()
     EVENT_MANAGER:RegisterForEvent(NS .. "_TH", EVENT_OPEN_TRADING_HOUSE, function()
         if Rule.active then
             Announce("Guild Store")
-            pcall(function()
+            if EndInteraction then
                 EndInteraction(INTERACTION_TRADINGHOUSE)
-            end)
+            end
             HideIf("tradinghouse")
         end
     end)
 
     EVENT_MANAGER:RegisterForEvent(NS .. "_CHATTER", EVENT_CHATTER_BEGIN, function()
-        if Rule.active then
-            pcall(function() EndInteraction(INTERACTION_BANK) end)
-            pcall(function() EndInteraction(INTERACTION_GUILD_BANK) end)
-            pcall(function() EndInteraction(INTERACTION_TRADINGHOUSE) end)
+        if Rule.active and EndInteraction then
+            EndInteraction(INTERACTION_BANK)
+            EndInteraction(INTERACTION_GUILDBANK)
+            EndInteraction(INTERACTION_TRADINGHOUSE)
         end
     end)
 
@@ -118,15 +118,4 @@ function Rule:OnDisable()
     self.active = false
 end
 
-local function TryRegister()
-    if HARDCORE and HARDCORE.RuleManager and HARDCORE.RuleManager.RegisterRule then
-        HARDCORE.RuleManager:RegisterRule(Rule)
-        EVENT_MANAGER:UnregisterForEvent(NS .. "_DEFER", EVENT_ADD_ON_LOADED)
-    end
-end
-
-if HARDCORE and HARDCORE.RuleManager then
-    TryRegister()
-else
-    EVENT_MANAGER:RegisterForEvent(NS .. "_DEFER", EVENT_ADD_ON_LOADED, TryRegister)
-end
+HARDCORE.RuleManager:RegisterRule(Rule)

@@ -12,10 +12,20 @@ Rule._hooksInstalled = false
 local function IsPlayerInCity()
     local zoneIndex, poiIndex = GetCurrentSubZonePOIIndices()
     if zoneIndex and poiIndex then
-        local _, _, _, _, _, poiType = GetPOIInfo(zoneIndex, poiIndex)
-        return poiType == POI_TYPE_CITY or poiType == POI_TYPE_TOWN
+        local poiName, _, _, _, _, poiType = GetPOIInfo(zoneIndex, poiIndex)
+        return poiName and poiName ~= "" and poiType == POI_TYPE_STANDARD and IsInJusticeEnabledZone() and not IsInAvAZone()
     end
     return false
+end
+
+local function GetSceneName(arg)
+    if type(arg) == "string" then
+        return arg
+    end
+    if type(arg) == "table" and arg.GetName then
+        return arg:GetName()
+    end
+    return nil
 end
 
 local function Announce()
@@ -27,10 +37,11 @@ local function Install()
         return
     end
 
-    ZO_PreHook(SCENE_MANAGER, "Show", function(_, sceneName)
+    ZO_PreHook(SCENE_MANAGER, "Show", function(_, arg)
         if not Rule.active then
             return false
         end
+        local sceneName = GetSceneName(arg)
         if sceneName == "skills" and not IsPlayerInCity() then
             Announce()
             return true
@@ -49,15 +60,4 @@ function Rule:OnDisable()
     self.active = false
 end
 
-local function TryRegister()
-    if HARDCORE and HARDCORE.RuleManager and HARDCORE.RuleManager.RegisterRule then
-        HARDCORE.RuleManager:RegisterRule(Rule)
-        EVENT_MANAGER:UnregisterForEvent(NS .. "_DEFER", EVENT_ADD_ON_LOADED)
-    end
-end
-
-if HARDCORE and HARDCORE.RuleManager then
-    TryRegister()
-else
-    EVENT_MANAGER:RegisterForEvent(NS .. "_DEFER", EVENT_ADD_ON_LOADED, TryRegister)
-end
+HARDCORE.RuleManager:RegisterRule(Rule)

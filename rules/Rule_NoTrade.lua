@@ -26,7 +26,7 @@ end
 
 local function SafeHideTrade()
     zo_callLater(function()
-        if TradeCancel then pcall(TradeCancel) end
+        if TradeCancel then TradeCancel() end
         if SCENE_MANAGER and SCENE_MANAGER:GetCurrentScene() and SCENE_MANAGER:GetCurrentScene():GetName() == "trade" then
             SCENE_MANAGER:ShowBaseScene()
         end
@@ -58,12 +58,13 @@ local function InstallHooks()
             if Rule.active then
                 Announce()
                 if TradeInviteDecline then TradeInviteDecline() end
+                return true
             end
         end)
     end
 
-    if EVENT_TRADE_INVITE_CONSIDER then
-        EVENT_MANAGER:RegisterForEvent(NS .. "_INVITE", EVENT_TRADE_INVITE_CONSIDER, function(_, inviterDisplayName)
+    if EVENT_TRADE_INVITE_CONSIDERING then
+        EVENT_MANAGER:RegisterForEvent(NS .. "_INVITE", EVENT_TRADE_INVITE_CONSIDERING, function(_, inviterCharacterName, inviterDisplayName)
             if Rule.active and TradeInviteDecline then
                 TradeInviteDecline()
                 Announce()
@@ -71,14 +72,6 @@ local function InstallHooks()
         end)
     end
 
-    if PlaceInTradeWindow then
-        ZO_PreHook("PlaceInTradeWindow", function(tradeIndex)
-            if Rule.active then
-                Announce()
-                return true
-            end
-        end)
-    end
     if TradeSetMoney then
         ZO_PreHook("TradeSetMoney", function(amount)
             if Rule.active then
@@ -142,15 +135,4 @@ function Rule:OnDisable()
     self.active = false
 end
 
-local function TryRegister()
-    if HARDCORE and HARDCORE.RuleManager and HARDCORE.RuleManager.RegisterRule then
-        HARDCORE.RuleManager:RegisterRule(Rule)
-        EVENT_MANAGER:UnregisterForEvent(NS .. "_DEFER", EVENT_ADD_ON_LOADED)
-    end
-end
-
-if HARDCORE and HARDCORE.RuleManager then
-    TryRegister()
-else
-    EVENT_MANAGER:RegisterForEvent(NS .. "_DEFER", EVENT_ADD_ON_LOADED, TryRegister)
-end
+HARDCORE.RuleManager:RegisterRule(Rule)

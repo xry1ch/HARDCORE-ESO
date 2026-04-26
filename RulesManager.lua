@@ -5,16 +5,18 @@ RuleManager.rules = {}
 RuleManager.enabledRuntime = {}
 
 local function GetCharSV()
-    if not HARDCORE or not HARDCORE.rulesSaved then
-        HARDCORE.rulesSaved = ZO_SavedVars:NewCharacterIdSettings("HARDCORE_Rules_SV", 1, nil, {
-            enabled = {}
-        })
+    if not (HARDCORE and HARDCORE.rulesSaved) then
+        return nil
     end
+    HARDCORE.rulesSaved.enabled = HARDCORE.rulesSaved.enabled or {}
     return HARDCORE.rulesSaved
 end
 
 local function EnsureSavedEnable(rule)
     local sv = GetCharSV()
+    if not sv then
+        return (rule.defaultEnabled ~= false) and true or false
+    end
     if sv.enabled[rule.id] == nil then
         sv.enabled[rule.id] = (rule.defaultEnabled ~= false) and true or false
     end
@@ -25,10 +27,12 @@ function RuleManager:RegisterRule(rule)
     assert(type(rule) == "table" and rule.id, "Rule must be a table with a unique 'id'")
     assert(not self.rules[rule.id], ("Duplicate rule id '%s'"):format(tostring(rule.id)))
     self.rules[rule.id] = rule
-    EnsureSavedEnable(rule)
+    if HARDCORE and HARDCORE.rulesSaved then
+        EnsureSavedEnable(rule)
+    end
     if HARDCORE and HARDCORE.saved and HARDCORE.saved.isActive then
         local sv = GetCharSV()
-        if sv.enabled[rule.id] then
+        if sv and sv.enabled[rule.id] then
             self:EnableRule(rule.id)
         end
     end
@@ -44,13 +48,6 @@ function RuleManager:ForEachRule(fn)
     end
 end
 
-local function safeCall(what, rule, fnName)
-    local ok, err = pcall(rule[fnName], rule)
-    if not ok then
-        -- log(string.format("%s failed for rule '%s': %s", what, tostring(rule.id), tostring(err)))
-    end
-end
-
 function RuleManager:EnableRule(id)
     local rule = self.rules[id]
     if not rule then
@@ -60,10 +57,13 @@ function RuleManager:EnableRule(id)
         return
     end
     if type(rule.OnEnable) == "function" then
-        safeCall("OnEnable", rule, "OnEnable")
+        rule:OnEnable()
     end
     self.enabledRuntime[id] = true
-    GetCharSV().enabled[id] = true
+    local sv = GetCharSV()
+    if sv then
+        sv.enabled[id] = true
+    end
 end
 
 function RuleManager:DisableRule(id)
@@ -75,15 +75,22 @@ function RuleManager:DisableRule(id)
         return
     end
     if type(rule.OnDisable) == "function" then
-        safeCall("OnDisable", rule, "OnDisable")
+        rule:OnDisable()
     end
     self.enabledRuntime[id] = false
-    GetCharSV().enabled[id] = false
+    local sv = GetCharSV()
+    if sv then
+        sv.enabled[id] = false
+    end
 end
 
 function RuleManager:ApplyAll()
     local sv = GetCharSV()
+    if not sv then
+        return
+    end
     for id, rule in pairs(self.rules) do
+        EnsureSavedEnable(rule)
         if sv.enabled[id] then
             self:EnableRule(id)
         else
@@ -122,7 +129,12 @@ function RuleManager:RefreshActiveState()
 end
 
 function RuleManager:Init()
-    GetCharSV()
+    if HARDCORE and HARDCORE.InitRulesSaved then
+        HARDCORE.InitRulesSaved()
+    end
+    for _, rule in pairs(self.rules) do
+        EnsureSavedEnable(rule)
+    end
     self:RefreshActiveState()
     -- log("RuleManager initialized (active=" .. tostring(HARDCORE and HARDCORE.saved and HARDCORE.saved.isActive) .. ")")
 end

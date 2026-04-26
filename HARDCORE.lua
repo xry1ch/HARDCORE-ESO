@@ -159,7 +159,7 @@ local function BuildSet(arr)
     return s
 end
 
-local function GetRulesSV()
+function HARDCORE.InitRulesSaved()
     HARDCORE = HARDCORE or {}
     if not HARDCORE.rulesSaved then
         HARDCORE.rulesSaved = ZO_SavedVars:NewCharacterIdSettings("HARDCORE_Rules_SV", 1, nil, {
@@ -168,6 +168,10 @@ local function GetRulesSV()
     end
     HARDCORE.rulesSaved.enabled = HARDCORE.rulesSaved.enabled or {}
     return HARDCORE.rulesSaved
+end
+
+local function GetRulesSV()
+    return HARDCORE.InitRulesSaved()
 end
 function HARDCORE.SetDifficultySliderEnabled(enabled)
     if not HARDCORE.difficultySlider then
@@ -304,7 +308,7 @@ local function HARDCORE_OnPowerUpdate(_, unitTag, powerIndex, powerType, powerVa
     if unitTag ~= "player" then
         return
     end
-    if powerType ~= POWERTYPE_HEALTH then
+    if powerType ~= COMBAT_MECHANIC_FLAGS_HEALTH then
         return
     end
 
@@ -312,7 +316,7 @@ local function HARDCORE_OnPowerUpdate(_, unitTag, powerIndex, powerType, powerVa
         return
     end
 
-    local cur, maxVal = GetUnitPower("player", POWERTYPE_HEALTH)
+    local cur, maxVal = GetUnitPower("player", COMBAT_MECHANIC_FLAGS_HEALTH)
     if not maxVal or maxVal <= 0 then
         return
     end
@@ -337,6 +341,8 @@ end
 local function HARDCORE_EnableMinHpTracking()
     EVENT_MANAGER:UnregisterForEvent(MINHP_EVENT_NAME, EVENT_POWER_UPDATE)
     EVENT_MANAGER:RegisterForEvent(MINHP_EVENT_NAME, EVENT_POWER_UPDATE, HARDCORE_OnPowerUpdate)
+    EVENT_MANAGER:AddFilterForEvent(MINHP_EVENT_NAME, EVENT_POWER_UPDATE, REGISTER_FILTER_UNIT_TAG, "player")
+    EVENT_MANAGER:AddFilterForEvent(MINHP_EVENT_NAME, EVENT_POWER_UPDATE, REGISTER_FILTER_POWER_TYPE, COMBAT_MECHANIC_FLAGS_HEALTH)
 end
 
 local function HARDCORE_DisableMinHpTracking()
@@ -445,9 +451,31 @@ local function AddHardcoreMainMenuButton()
     HARDCORE._mainMenuBtnAdded = true
 end
 
-EVENT_MANAGER:RegisterForEvent("HARDCORE_MainMenuBtn", EVENT_PLAYER_ACTIVATED, function()
+local function HARDCORE_OnPlayerActivatedMainMenu()
     AddHardcoreMainMenuButton()
-end)
+end
+
+local function HARDCORE_OnUnitDeathStateChanged(_, unitTag, isDead)
+    if unitTag ~= "player" then
+        return
+    end
+
+    if isDead and HARDCORE.saved and HARDCORE.saved.isActive then
+        HARDCORE.saved.hasDied = true
+        HARDCORE.SurrenderChallenge()
+        HARDCORE.RestoreHUDSettings()
+        HARDCORE.ShowDeathWindow()
+    end
+end
+
+local function HARDCORE_OnLevelUpdate(_, unitTag, newLevel)
+    if unitTag ~= "player" then
+        return
+    end
+    if newLevel >= 50 and HARDCORE.saved and HARDCORE.saved.isActive and not HARDCORE.saved.hasSeenCongrats then
+        HARDCORE.ShowCongratulationsWindow()
+    end
+end
 
 local function HARDCORE_HasAnyChampionSlotted()
     local startSlot, endSlot = GetAssignableChampionBarStartAndEndSlots()
@@ -959,10 +987,6 @@ local function OnAddOnLoaded(event, addonName)
 
     HARDCORE.saved = ZO_SavedVars:NewCharacterIdSettings("HARDCORE_SV", 1, nil, HARDCORE.defaults, GetWorldName())
     if HARDCORE.saved.isActive then
-        if HARDCORE.RuleManager and HARDCORE.RuleManager.SetActive then
-            HARDCORE.RuleManager:SetActive(true)
-        end
-
         if HARDCORE.saved.minHealthPct == nil then
             HARDCORE.saved.minHealthPct = 100
         end
@@ -1036,6 +1060,14 @@ local function OnAddOnLoaded(event, addonName)
     CreateIntroWindow()
     RegisterSlash()
 
+    EVENT_MANAGER:RegisterForEvent("HARDCORE_MainMenuBtn", EVENT_PLAYER_ACTIVATED, HARDCORE_OnPlayerActivatedMainMenu)
+
+    EVENT_MANAGER:RegisterForEvent(ADDON_NAME .. "_Death", EVENT_UNIT_DEATH_STATE_CHANGED, HARDCORE_OnUnitDeathStateChanged)
+    EVENT_MANAGER:AddFilterForEvent(ADDON_NAME .. "_Death", EVENT_UNIT_DEATH_STATE_CHANGED, REGISTER_FILTER_UNIT_TAG, "player")
+
+    EVENT_MANAGER:RegisterForEvent(ADDON_NAME .. "_Level", EVENT_LEVEL_UPDATE, HARDCORE_OnLevelUpdate)
+    EVENT_MANAGER:AddFilterForEvent(ADDON_NAME .. "_Level", EVENT_LEVEL_UPDATE, REGISTER_FILTER_UNIT_TAG, "player")
+
     if HARDCORE.saved.isActive and GetUnitLevel("player") >= 50 and not HARDCORE.saved.hasSeenCongrats then
         zo_callLater(function()
             HARDCORE.ShowCongratulationsWindow()
@@ -1049,19 +1081,6 @@ local function OnAddOnLoaded(event, addonName)
     end
 
 end
-
-EVENT_MANAGER:RegisterForEvent(ADDON_NAME, EVENT_UNIT_DEATH_STATE_CHANGED, function(_, unitTag, isDead)
-    if unitTag ~= "player" then
-        return
-    end
-
-    if isDead and HARDCORE.saved and HARDCORE.saved.isActive then
-        HARDCORE.saved.hasDied = true
-        HARDCORE.SurrenderChallenge()
-        HARDCORE.RestoreHUDSettings()
-        HARDCORE.ShowDeathWindow()
-    end
-end)
 
 function HARDCORE.ShowCongratulationsWindow()
     if HARDCORE.congratsWindow then
@@ -1300,12 +1319,5 @@ function HARDCORE.ShowDeathWindow()
     SetGameCameraUIMode(true)
     PlaySound(SOUNDS.ENDLESS_DUNGEON_RUN_COMPLETE)
 end
-
-EVENT_MANAGER:RegisterForEvent(ADDON_NAME, EVENT_LEVEL_UPDATE, function(_, unitTag, newLevel)
-    if unitTag ~= "player" then return end
-    if newLevel >= 50 and HARDCORE.saved.isActive and not HARDCORE.saved.hasSeenCongrats then
-        HARDCORE.ShowCongratulationsWindow()
-    end
-end)
 
 EVENT_MANAGER:RegisterForEvent(ADDON_NAME, EVENT_ADD_ON_LOADED, OnAddOnLoaded)

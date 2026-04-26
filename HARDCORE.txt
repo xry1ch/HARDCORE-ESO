@@ -2,9 +2,10 @@
 ## Author: |cFFFF00Wrynch|r
 ## Version: 1.0.0
 ## APIVersion: 101049
-## DependsOn: LibAddonMenu-2.0
-## SavedVariables: HARDCORE_SV
+## DependsOn: LibAddonMenu-2.0>=41
+## SavedVariables: HARDCORE_SV HARDCORE_Rules_SV HARDCORE_HUD_SV HARDCORE_HUD_BACKUP
 
+HARDCORE.lua
 RulesManager.lua
 rules/Rule_NoMail.lua
 rules/Rule_NoCrafting.lua
@@ -20,4 +21,3 @@ rules/Rule_NoHealthBar.lua
 rules/Rule_LimitedSets.lua
 rules/Rule_NoCP.lua
 rules/Rule_NoTrade.lua
-HARDCORE.lua

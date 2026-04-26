@@ -62,15 +62,4 @@ function Rule:OnDisable()
     self.active = false
 end
 
-local function TryRegister()
-    if HARDCORE and HARDCORE.RuleManager and HARDCORE.RuleManager.RegisterRule then
-        HARDCORE.RuleManager:RegisterRule(Rule)
-        EVENT_MANAGER:UnregisterForEvent(NS .. "_DEFER", EVENT_ADD_ON_LOADED)
-    end
-end
-
-if HARDCORE and HARDCORE.RuleManager then
-    TryRegister()
-else
-    EVENT_MANAGER:RegisterForEvent(NS .. "_DEFER", EVENT_ADD_ON_LOADED, TryRegister)
-end
+HARDCORE.RuleManager:RegisterRule(Rule)

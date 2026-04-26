@@ -52,20 +52,6 @@ local function InstallHooks()
         end
     end)
 
-    if UseItem then
-        ZO_PreHook("UseItem", function(bagId, slotIndex)
-            if not Rule.active then
-                return false
-            end
-            local itemType = GetItemType(bagId, slotIndex)
-            if itemType == ITEMTYPE_REPAIR_KIT then
-                AlertBlocked()
-                return true
-            end
-            return false
-        end)
-    end
-
     local repairScene = SCENE_MANAGER and SCENE_MANAGER:GetScene("repair")
     if repairScene then
         repairScene:RegisterCallback("StateChange", function(_, newState)
@@ -88,15 +74,4 @@ function Rule:OnDisable()
     self.active = false
 end
 
-local function TryRegister()
-    if HARDCORE and HARDCORE.RuleManager and HARDCORE.RuleManager.RegisterRule then
-        HARDCORE.RuleManager:RegisterRule(Rule)
-        EVENT_MANAGER:UnregisterForEvent(NS .. "_DEFER", EVENT_ADD_ON_LOADED)
-    end
-end
-
-if HARDCORE and HARDCORE.RuleManager then
-    TryRegister()
-else
-    EVENT_MANAGER:RegisterForEvent(NS .. "_DEFER", EVENT_ADD_ON_LOADED, TryRegister)
-end
+HARDCORE.RuleManager:RegisterRule(Rule)

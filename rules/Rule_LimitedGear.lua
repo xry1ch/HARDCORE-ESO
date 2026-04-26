@@ -1,19 +1,14 @@
 local Rule = {
     id = "LimitedGear",
-    title = "Max green gear",
+    title = "Humble Gear Only",
     icon = "/esoui/art/inventory/inventory_tabicon_armor_up.dds",
     defaultEnabled = true
 }
 
-local NS = "HARDCORE_WhiteGear50"
-Rule.active = true
+local NS = "HARDCORE_LimitedGear"
+Rule.active = false
 Rule._installed = false
 Rule._lastAlert = 0
-
-local function is50Plus()
-    local level = GetUnitLevel("player") or 1
-    return level >= 50
-end
 
 local function canActNow()
     return not IsUnitInCombat("player")
@@ -22,7 +17,7 @@ end
 local function alertOnce()
     local now = GetFrameTimeMilliseconds()
     if now - Rule._lastAlert > 1500 then
-        ZO_Alert(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, "HARDCORE: Only white/green gear allowed at level 50+.")
+        ZO_Alert(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, "HARDCORE: Only white/green gear allowed.")
         Rule._lastAlert = now
     end
 end
@@ -36,12 +31,12 @@ local function isAboveGreenEquipped(slot)
     if not link or link == "" then
         return false
     end
-    local q = GetItemLinkQuality(link)
-    return q and q > ITEM_QUALITY_MAGIC
+    local q = GetItemLinkFunctionalQuality(link)
+    return q and q > ITEM_FUNCTIONAL_QUALITY_MAGIC
 end
 
 local function enforceMaxGreen()
-    if not Rule.active or not is50Plus() then
+    if not Rule.active then
         return
     end
     if not canActNow() then
@@ -51,7 +46,7 @@ local function enforceMaxGreen()
     local changed = false
     for _, slot in ipairs(WORN_SLOTS) do
         if isAboveGreenEquipped(slot) then
-            UnequipItem(slot)
+            RequestUnequipItem(BAG_WORN, slot)
             changed = true
         end
     end
@@ -62,7 +57,7 @@ local function enforceMaxGreen()
 end
 
 local function onInventoryChange(_, bagId, slotIndex, isNewItem, itemSoundCategory, updateReason, stackCountChange)
-    if not Rule.active or not is50Plus() then
+    if not Rule.active then
         return
     end
     if bagId ~= BAG_WORN then
@@ -92,6 +87,7 @@ local function Install()
             zo_callLater(enforceMaxGreen, 200)
         end
     end)
+    EVENT_MANAGER:AddFilterForEvent(NS .. "_LEVEL", EVENT_LEVEL_UPDATE, REGISTER_FILTER_UNIT_TAG, "player")
 
     EVENT_MANAGER:RegisterForEvent(NS .. "_INV", EVENT_INVENTORY_SINGLE_SLOT_UPDATE, onInventoryChange)
     EVENT_MANAGER:AddFilterForEvent(NS .. "_INV", EVENT_INVENTORY_SINGLE_SLOT_UPDATE, REGISTER_FILTER_BAG_ID, BAG_WORN)
@@ -117,15 +113,4 @@ function Rule:OnDisable()
     self.active = false
 end
 
-local function TryRegister()
-    if HARDCORE and HARDCORE.RuleManager and HARDCORE.RuleManager.RegisterRule then
-        HARDCORE.RuleManager:RegisterRule(Rule)
-        EVENT_MANAGER:UnregisterForEvent(NS .. "_DEFER", EVENT_ADD_ON_LOADED)
-    end
-end
-
-if HARDCORE and HARDCORE.RuleManager then
-    TryRegister()
-else
-    EVENT_MANAGER:RegisterForEvent(NS .. "_DEFER", EVENT_ADD_ON_LOADED, TryRegister)
-end
+HARDCORE.RuleManager:RegisterRule(Rule)

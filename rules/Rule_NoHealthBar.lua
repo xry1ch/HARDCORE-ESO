@@ -35,7 +35,7 @@ local PULSE_PERIOD_MS = 900 -- full in-out period
 local FADE_START_HP = 0.80 -- no darkening above 80% HP
 
 local function GetPlayerHealthPercent()
-    local cur, max = GetUnitPower("player", POWERTYPE_HEALTH)
+    local cur, max = GetUnitPower("player", COMBAT_MECHANIC_FLAGS_HEALTH)
     if not max or max <= 0 then
         return 1
     end
@@ -286,7 +286,7 @@ local function Install()
             if not Rule.active then
                 return
             end
-            if unitTag ~= "player" or powerType ~= POWERTYPE_HEALTH then
+            if unitTag ~= "player" or powerType ~= COMBAT_MECHANIC_FLAGS_HEALTH then
                 return
             end
             EnsureOverlay()
@@ -323,6 +323,8 @@ local function Install()
 
             ApplyVolumeFromHP(hp)
         end)
+    EVENT_MANAGER:AddFilterForEvent(NS .. "_POWER", EVENT_POWER_UPDATE, REGISTER_FILTER_UNIT_TAG, "player")
+    EVENT_MANAGER:AddFilterForEvent(NS .. "_POWER", EVENT_POWER_UPDATE, REGISTER_FILTER_POWER_TYPE, COMBAT_MECHANIC_FLAGS_HEALTH)
 
     -- Death / revive
     EVENT_MANAGER:RegisterForEvent(NS .. "_DEATH", EVENT_UNIT_DEATH_STATE_CHANGED, function(_, unitTag, isDead)
@@ -340,6 +342,7 @@ local function Install()
             UpdateOverlayFromHealth()
         end
     end)
+    EVENT_MANAGER:AddFilterForEvent(NS .. "_DEATH", EVENT_UNIT_DEATH_STATE_CHANGED, REGISTER_FILTER_UNIT_TAG, "player")
 
     EVENT_MANAGER:RegisterForEvent(NS .. "_RESIZE", EVENT_SCREEN_RESIZED, function()
         if overlayTLW then
@@ -389,15 +392,4 @@ function Rule:RefreshOptions()
     ApplyVolumeFromHP(hp)
 end
 
-local function TryRegister()
-    if HARDCORE and HARDCORE.RuleManager and HARDCORE.RuleManager.RegisterRule then
-        HARDCORE.RuleManager:RegisterRule(Rule)
-        EVENT_MANAGER:UnregisterForEvent(NS .. "_DEFER", EVENT_ADD_ON_LOADED)
-    end
-end
-
-if HARDCORE and HARDCORE.RuleManager then
-    TryRegister()
-else
-    EVENT_MANAGER:RegisterForEvent(NS .. "_DEFER", EVENT_ADD_ON_LOADED, TryRegister)
-end
+HARDCORE.RuleManager:RegisterRule(Rule)

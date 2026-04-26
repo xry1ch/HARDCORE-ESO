@@ -22,12 +22,8 @@ end
 
 local function CleanExit()
     zo_callLater(function()
-        if EndCraftingStationInteraction then
-            pcall(EndCraftingStationInteraction)
-        end
         if IsInteracting and IsInteracting() and EndInteraction then
-            pcall(EndInteraction, INTERACTION_CRAFT)
-            pcall(EndInteraction, INTERACTION_INTERACT)
+            EndInteraction(INTERACTION_CRAFT)
         end
         if SCENE_MANAGER then
             SCENE_MANAGER:ShowBaseScene()
@@ -92,15 +88,4 @@ function Rule:OnDisable()
     self.active = false
 end
 
-local function TryRegister()
-    if HARDCORE and HARDCORE.RuleManager and HARDCORE.RuleManager.RegisterRule then
-        HARDCORE.RuleManager:RegisterRule(Rule)
-        EVENT_MANAGER:UnregisterForEvent(NS .. "_DEFER", EVENT_ADD_ON_LOADED)
-    end
-end
-
-if HARDCORE and HARDCORE.RuleManager then
-    TryRegister()
-else
-    EVENT_MANAGER:RegisterForEvent(NS .. "_DEFER", EVENT_ADD_ON_LOADED, TryRegister)
-end
+HARDCORE.RuleManager:RegisterRule(Rule)

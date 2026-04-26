@@ -42,11 +42,22 @@ local function IsBlockedSceneName(sceneName)
     return string.find(sceneName, "champion", 1, true) ~= nil
 end
 
+local function GetSceneName(arg)
+    if type(arg) == "string" then
+        return arg
+    end
+    if type(arg) == "table" and arg.GetName then
+        return arg:GetName()
+    end
+    return nil
+end
+
 local function InstallHooks()
     if Rule._hooksInstalled then return end
 
-    ZO_PreHook(SCENE_MANAGER, "Show", function(_, sceneName)
+    ZO_PreHook(SCENE_MANAGER, "Show", function(_, arg)
         if not Rule.active then return false end
+        local sceneName = GetSceneName(arg)
         if IsBlockedSceneName(sceneName) then
             Announce()
             return true
@@ -93,15 +104,4 @@ function Rule:OnDisable()
     self.active = false
 end
 
-local function TryRegister()
-    if HARDCORE and HARDCORE.RuleManager and HARDCORE.RuleManager.RegisterRule then
-        HARDCORE.RuleManager:RegisterRule(Rule)
-        EVENT_MANAGER:UnregisterForEvent(NS .. "_DEFER", EVENT_ADD_ON_LOADED)
-    end
-end
-
-if HARDCORE and HARDCORE.RuleManager then
-    TryRegister()
-else
-    EVENT_MANAGER:RegisterForEvent(NS .. "_DEFER", EVENT_ADD_ON_LOADED, TryRegister)
-end
+HARDCORE.RuleManager:RegisterRule(Rule)

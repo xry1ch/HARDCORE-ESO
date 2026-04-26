@@ -94,9 +94,6 @@ function Rule:OnDisable()
     end
 end
 
-HARDCORE = HARDCORE or {}
-if HARDCORE.RuleManager and HARDCORE.RuleManager.RegisterRule then
-    HARDCORE.RuleManager:RegisterRule(Rule)
-end
+HARDCORE.RuleManager:RegisterRule(Rule)
 
 return Rule
