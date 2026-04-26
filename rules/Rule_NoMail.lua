@@ -1,3 +1,5 @@
+local HARDCORE = HARDCORE
+
 local Rule = {
   id = "NoMail",
   title = "No mail",

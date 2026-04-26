@@ -1,3 +1,5 @@
+local HARDCORE = HARDCORE
+
 local Rule = {
     id = "NoHealthBar",
     title = "Hide player Health bar (vision fades with missing health)",

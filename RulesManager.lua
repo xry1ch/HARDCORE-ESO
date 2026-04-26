@@ -1,4 +1,5 @@
 local RuleManager = {}
+local HARDCORE = HARDCORE
 RuleManager.__index = RuleManager
 
 RuleManager.rules = {}

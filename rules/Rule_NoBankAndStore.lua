@@ -1,3 +1,5 @@
+local HARDCORE = HARDCORE
+
 local Rule = {
     id = "NoBank",
     title = "No banks / guild stores",

@@ -1,3 +1,5 @@
+local HARDCORE = HARDCORE
+
 local Rule = {
     id = "NoSoulGems",
     title = "No Soul Gems (no recharging)",

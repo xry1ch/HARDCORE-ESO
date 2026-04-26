@@ -1,5 +1,6 @@
 local ADDON_NAME = "HARDCORE"
 HARDCORE = HARDCORE or {}
+local HARDCORE = HARDCORE
 HARDCORE.name = ADDON_NAME
 HARDCORE.version = "1.0.0"
 
@@ -164,7 +165,7 @@ function HARDCORE.InitRulesSaved()
     if not HARDCORE.rulesSaved then
         HARDCORE.rulesSaved = ZO_SavedVars:NewCharacterIdSettings("HARDCORE_Rules_SV", 1, nil, {
             enabled = {}
-        })
+        }, GetWorldName())
     end
     HARDCORE.rulesSaved.enabled = HARDCORE.rulesSaved.enabled or {}
     return HARDCORE.rulesSaved
@@ -724,7 +725,7 @@ local function CreateIntroWindow()
                     allHealthbars = nil,
                     combatCues = nil
                 }
-            })
+            }, GetWorldName())
         end
         return HARDCORE.hudBackup
     end

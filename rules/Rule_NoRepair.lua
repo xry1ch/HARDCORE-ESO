@@ -1,3 +1,5 @@
+local HARDCORE = HARDCORE
+
 local Rule = {
     id = "NoRepair",
     title = "No repairs (kits & vendors)",

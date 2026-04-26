@@ -1,3 +1,5 @@
+local HARDCORE = HARDCORE
+
 local Rule = {
     id = "NoCP",
     title = "No Champion Points UI",

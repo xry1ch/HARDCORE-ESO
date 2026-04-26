@@ -1,3 +1,5 @@
+local HARDCORE = HARDCORE
+
 local Rule = {
   id = "LimitedSets",
   title = "Max 2 pieces per set",

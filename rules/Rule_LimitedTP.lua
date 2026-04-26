@@ -1,3 +1,5 @@
+local HARDCORE = HARDCORE
+
 local Rule = {
     id = "LimitedTP",
     title = "Wayshrine-to-wayshrine only",

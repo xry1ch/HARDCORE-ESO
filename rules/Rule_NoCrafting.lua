@@ -1,3 +1,5 @@
+local HARDCORE = HARDCORE
+
 local Rule = {
     id = "NoCrafting",
     title = "No crafting stations (except Alchemy & Cooking)",

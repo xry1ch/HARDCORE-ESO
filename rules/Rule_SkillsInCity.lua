@@ -1,3 +1,5 @@
+local HARDCORE = HARDCORE
+
 local Rule = {
     id = "EquipmentCitySkills",
     title = "Skills only in city/town",

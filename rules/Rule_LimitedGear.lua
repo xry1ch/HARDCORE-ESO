@@ -1,3 +1,5 @@
+local HARDCORE = HARDCORE
+
 local Rule = {
     id = "LimitedGear",
     title = "Humble Gear Only",

@@ -1,3 +1,5 @@
+local HARDCORE = HARDCORE
+
 local ID = "HardcoreHUD"
 
 local PEEK_FADE_IN_MS = 120
@@ -14,7 +16,7 @@ local function GetSV()
                 allHealthbars = nil,
                 combatCues = nil
             }
-        })
+        }, GetWorldName())
     end
     return HARDCORE.hudSaved
 end
