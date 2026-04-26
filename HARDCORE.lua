@@ -996,7 +996,6 @@ local function OnAddOnLoaded(event, addonName)
         local panelData = {
             type = "panel",
             name = "HARDCORE",
-            author = "You",
             version = HARDCORE.version,
             displayName = "|cFFD700HARDCORE|r",
             registerForRefresh = true,

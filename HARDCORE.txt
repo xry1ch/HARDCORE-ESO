@@ -1,8 +1,7 @@
 ## Title: HARDCORE
-## Author: You
-## Version: 0.1.0
-## APIVersion: 101046
-## Description: Hardcore rules intro window shown on first load and via /hc.
+## Author: |cFFFF00Wrynch|r
+## Version: 1.0.0
+## APIVersion: 101049
 ## DependsOn: LibAddonMenu-2.0
 ## SavedVariables: HARDCORE_SV
 
