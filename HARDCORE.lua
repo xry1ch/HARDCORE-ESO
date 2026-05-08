@@ -306,17 +306,6 @@ end
 local MINHP_EVENT_NAME = ADDON_NAME .. "_MinHP"
 
 local function HARDCORE_OnPowerUpdate(_, unitTag, powerIndex, powerType, powerValue, powerMax, powerEffectiveMax)
-    if unitTag ~= "player" then
-        return
-    end
-    if powerType ~= COMBAT_MECHANIC_FLAGS_HEALTH then
-        return
-    end
-
-    if not (HARDCORE.saved and HARDCORE.saved.isActive) then
-        return
-    end
-
     local cur, maxVal = GetUnitPower("player", COMBAT_MECHANIC_FLAGS_HEALTH)
     if not maxVal or maxVal <= 0 then
         return
@@ -341,9 +330,10 @@ end
 
 local function HARDCORE_EnableMinHpTracking()
     EVENT_MANAGER:UnregisterForEvent(MINHP_EVENT_NAME, EVENT_POWER_UPDATE)
-    EVENT_MANAGER:RegisterForEvent(MINHP_EVENT_NAME, EVENT_POWER_UPDATE, HARDCORE_OnPowerUpdate)
-    EVENT_MANAGER:AddFilterForEvent(MINHP_EVENT_NAME, EVENT_POWER_UPDATE, REGISTER_FILTER_UNIT_TAG, "player")
-    EVENT_MANAGER:AddFilterForEvent(MINHP_EVENT_NAME, EVENT_POWER_UPDATE, REGISTER_FILTER_POWER_TYPE, COMBAT_MECHANIC_FLAGS_HEALTH)
+    if HARDCORE.saved and HARDCORE.saved.isActive then
+        EVENT_MANAGER:RegisterForEvent(MINHP_EVENT_NAME, EVENT_POWER_UPDATE, HARDCORE_OnPowerUpdate)
+        EVENT_MANAGER:AddFilterForEvent(MINHP_EVENT_NAME, EVENT_POWER_UPDATE, REGISTER_FILTER_UNIT_TAG, "player", REGISTER_FILTER_POWER_TYPE, COMBAT_MECHANIC_FLAGS_HEALTH)
+    end
 end
 
 local function HARDCORE_DisableMinHpTracking()
@@ -360,6 +350,7 @@ function HARDCORE.BeginChallengeRun()
     if not sv.persistedMinHealthPct then
         sv.persistedMinHealthPct = 100
     end
+    HARDCORE_EnableMinHpTracking()
 
     if HARDCORE.RuleManager and HARDCORE.RuleManager.SetActive then
         HARDCORE.RuleManager:SetActive(true)
@@ -457,10 +448,6 @@ local function HARDCORE_OnPlayerActivatedMainMenu()
 end
 
 local function HARDCORE_OnUnitDeathStateChanged(_, unitTag, isDead)
-    if unitTag ~= "player" then
-        return
-    end
-
     if isDead and HARDCORE.saved and HARDCORE.saved.isActive then
         HARDCORE.saved.hasDied = true
         HARDCORE.SurrenderChallenge()
@@ -470,9 +457,6 @@ local function HARDCORE_OnUnitDeathStateChanged(_, unitTag, isDead)
 end
 
 local function HARDCORE_OnLevelUpdate(_, unitTag, newLevel)
-    if unitTag ~= "player" then
-        return
-    end
     if newLevel >= 50 and HARDCORE.saved and HARDCORE.saved.isActive and not HARDCORE.saved.hasSeenCongrats then
         HARDCORE.ShowCongratulationsWindow()
     end
@@ -873,7 +857,6 @@ local function CreateIntroWindow()
                 HARDCORE.saved.hasSeenIntro = true
                 HARDCORE.SaveHUDSettings()
                 HARDCORE.BeginChallengeRun()
-                HARDCORE.saved.isActive = true
                 if HARDCORE.RuleManager and HARDCORE.RuleManager.SetActive then
                     HARDCORE.RuleManager:SetActive(true)
                 end

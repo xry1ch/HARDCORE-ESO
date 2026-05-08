@@ -84,10 +84,8 @@ local function Install()
         zo_callLater(enforceMaxGreen, 200)
     end)
 
-    EVENT_MANAGER:RegisterForEvent(NS .. "_LEVEL", EVENT_LEVEL_UPDATE, function(_, unitTag)
-        if unitTag == "player" then
-            zo_callLater(enforceMaxGreen, 200)
-        end
+    EVENT_MANAGER:RegisterForEvent(NS .. "_LEVEL", EVENT_LEVEL_UPDATE, function()
+        zo_callLater(enforceMaxGreen, 200)
     end)
     EVENT_MANAGER:AddFilterForEvent(NS .. "_LEVEL", EVENT_LEVEL_UPDATE, REGISTER_FILTER_UNIT_TAG, "player")
 

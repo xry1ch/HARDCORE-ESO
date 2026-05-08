@@ -258,6 +258,73 @@ local function HookScenes()
     end)
 end
 
+local function OnPowerUpdate(_, unitTag, powerIndex, powerType, powerValue, powerMax)
+    EnsureOverlay()
+    local hp = (powerMax and powerMax > 0) and zo_clamp(powerValue / powerMax, 0, 1) or 1
+    if not IsVisionDimDisabled() then
+        local onHud = IsOnHud()
+        SetOverlayHidden(not onHud)
+
+        if onHud then
+            local curve = FadeFactorFromHP(hp)
+            local alpha = zo_clamp(curve * MAX_DARKEN_ALPHA, 0, MAX_DARKEN_ALPHA)
+            ApplyOverlayAlpha(alpha)
+
+            if hp <= LOW_HP_THRESHOLD then
+                if pulseTimeline and not pulseTimeline:IsPlaying() then
+                    pulseVignette:SetAlpha(PULSE_MIN_ALPHA)
+                    pulseTimeline:PlayFromStart()
+                end
+            else
+                if pulseTimeline and pulseTimeline:IsPlaying() then
+                    pulseTimeline:Stop()
+                end
+                pulseVignette:SetAlpha(0)
+            end
+        end
+    else
+        SetOverlayHidden(true)
+        if pulseTimeline and pulseTimeline:IsPlaying() then
+            pulseTimeline:Stop()
+        end
+        pulseVignette:SetAlpha(0)
+        ApplyOverlayAlpha(0)
+    end
+
+    ApplyVolumeFromHP(hp)
+end
+
+local function OnDeathStateChanged(_, unitTag, isDead)
+    if isDead then
+        ApplyOverlayAlpha(MAX_DARKEN_ALPHA)
+        if pulseTimeline and pulseTimeline:IsPlaying() then
+            pulseTimeline:Stop()
+        end
+        pulseVignette:SetAlpha(0)
+        ApplyVolumeFromHP(1)
+    else
+        UpdateOverlayFromHealth()
+    end
+end
+
+local function RegisterHealthEvents()
+    EVENT_MANAGER:UnregisterForEvent(NS .. "_POWER", EVENT_POWER_UPDATE)
+    EVENT_MANAGER:UnregisterForEvent(NS .. "_DEATH", EVENT_UNIT_DEATH_STATE_CHANGED)
+
+    if Rule.active then
+        EVENT_MANAGER:RegisterForEvent(NS .. "_POWER", EVENT_POWER_UPDATE, OnPowerUpdate)
+        EVENT_MANAGER:AddFilterForEvent(NS .. "_POWER", EVENT_POWER_UPDATE, REGISTER_FILTER_UNIT_TAG, "player", REGISTER_FILTER_POWER_TYPE, COMBAT_MECHANIC_FLAGS_HEALTH)
+
+        EVENT_MANAGER:RegisterForEvent(NS .. "_DEATH", EVENT_UNIT_DEATH_STATE_CHANGED, OnDeathStateChanged)
+        EVENT_MANAGER:AddFilterForEvent(NS .. "_DEATH", EVENT_UNIT_DEATH_STATE_CHANGED, REGISTER_FILTER_UNIT_TAG, "player")
+    end
+end
+
+local function UnregisterHealthEvents()
+    EVENT_MANAGER:UnregisterForEvent(NS .. "_POWER", EVENT_POWER_UPDATE)
+    EVENT_MANAGER:UnregisterForEvent(NS .. "_DEATH", EVENT_UNIT_DEATH_STATE_CHANGED)
+end
+
 -- === Install / Events ======================================================
 local function Install()
     if Rule._installed then
@@ -283,69 +350,6 @@ local function Install()
         end
     end)
 
-    EVENT_MANAGER:RegisterForEvent(NS .. "_POWER", EVENT_POWER_UPDATE,
-        function(_, unitTag, powerIndex, powerType, powerValue, powerMax)
-            if not Rule.active then
-                return
-            end
-            if unitTag ~= "player" or powerType ~= COMBAT_MECHANIC_FLAGS_HEALTH then
-                return
-            end
-            EnsureOverlay()
-            local hp = (powerMax and powerMax > 0) and zo_clamp(powerValue / powerMax, 0, 1) or 1
-            if not IsVisionDimDisabled() then
-                local onHud = IsOnHud()
-                SetOverlayHidden(not onHud)
-
-                if onHud then
-                    local curve = FadeFactorFromHP(hp)
-                    local alpha = zo_clamp(curve * MAX_DARKEN_ALPHA, 0, MAX_DARKEN_ALPHA)
-                    ApplyOverlayAlpha(alpha)
-
-                    if hp <= LOW_HP_THRESHOLD then
-                        if pulseTimeline and not pulseTimeline:IsPlaying() then
-                            pulseVignette:SetAlpha(PULSE_MIN_ALPHA)
-                            pulseTimeline:PlayFromStart()
-                        end
-                    else
-                        if pulseTimeline and pulseTimeline:IsPlaying() then
-                            pulseTimeline:Stop()
-                        end
-                        pulseVignette:SetAlpha(0)
-                    end
-                end
-            else
-                SetOverlayHidden(true)
-                if pulseTimeline and pulseTimeline:IsPlaying() then
-                    pulseTimeline:Stop()
-                end
-                pulseVignette:SetAlpha(0)
-                ApplyOverlayAlpha(0)
-            end
-
-            ApplyVolumeFromHP(hp)
-        end)
-    EVENT_MANAGER:AddFilterForEvent(NS .. "_POWER", EVENT_POWER_UPDATE, REGISTER_FILTER_UNIT_TAG, "player")
-    EVENT_MANAGER:AddFilterForEvent(NS .. "_POWER", EVENT_POWER_UPDATE, REGISTER_FILTER_POWER_TYPE, COMBAT_MECHANIC_FLAGS_HEALTH)
-
-    -- Death / revive
-    EVENT_MANAGER:RegisterForEvent(NS .. "_DEATH", EVENT_UNIT_DEATH_STATE_CHANGED, function(_, unitTag, isDead)
-        if not Rule.active or unitTag ~= "player" then
-            return
-        end
-        if isDead then
-            ApplyOverlayAlpha(MAX_DARKEN_ALPHA)
-            if pulseTimeline and pulseTimeline:IsPlaying() then
-                pulseTimeline:Stop()
-            end
-            pulseVignette:SetAlpha(0)
-            ApplyVolumeFromHP(1)
-        else
-            UpdateOverlayFromHealth()
-        end
-    end)
-    EVENT_MANAGER:AddFilterForEvent(NS .. "_DEATH", EVENT_UNIT_DEATH_STATE_CHANGED, REGISTER_FILTER_UNIT_TAG, "player")
-
     EVENT_MANAGER:RegisterForEvent(NS .. "_RESIZE", EVENT_SCREEN_RESIZED, function()
         if overlayTLW then
             overlayTLW:ClearAnchors()
@@ -359,6 +363,7 @@ end
 function Rule:OnEnable()
     self.active = true
     Install()
+    RegisterHealthEvents()
     ApplyHide()
 
     local onHud = IsOnHud()
@@ -369,6 +374,7 @@ end
 
 function Rule:OnDisable()
     self.active = false
+    UnregisterHealthEvents()
 
     if pulseTimeline and pulseTimeline:IsPlaying() then
         pulseTimeline:Stop()
