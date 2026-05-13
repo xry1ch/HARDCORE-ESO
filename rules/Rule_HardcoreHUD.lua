@@ -13,8 +13,7 @@ local function GetSV()
         HARDCORE.hudSaved = ZO_SavedVars:NewCharacterIdSettings("HARDCORE_HUD_SV", 1, nil, {
             prev = {
                 allNameplates = nil,
-                allHealthbars = nil,
-                combatCues = nil
+                allHealthbars = nil
             }
         }, GetWorldName())
     end
@@ -37,14 +36,6 @@ local function getHealthbars()
 end
 local function setHealthbars(enabledBool)
     SetSetting(SETTING_TYPE_NAMEPLATES, NAMEPLATE_TYPE_ALL_HEALTHBARS, toSetting(enabledBool))
-end
-
--- Combat Cues
-local function getCombatCues()
-    return GetSetting_Bool(SETTING_TYPE_COMBAT, COMBAT_SETTING_MONSTER_TELLS_ENABLED)
-end
-local function setCombatCues(enabledBool)
-    SetSetting(SETTING_TYPE_COMBAT, COMBAT_SETTING_MONSTER_TELLS_ENABLED, toSetting(enabledBool))
 end
 
 -- Target frame
@@ -130,14 +121,13 @@ end
 local function applyAllHides()
     setNameplates(false)
     setHealthbars(false)
-    setCombatCues(false)
     hideTargetFrame(true)
     hideActionBar(true)
 end
 
 local Rule = {
     id = ID,
-    title = "Hide nameplates, healthbars, target frame, combat cues & action bar (subtle peek)",
+    title = "Hide nameplates, healthbars, target frame & action bar (subtle peek)",
     icon = "/esoui/art/tutorial/examples/help-gamepad-statusbars-health_mini.dds",
     defaultEnabled = true
 }
@@ -147,7 +137,6 @@ function Rule:OnEnable()
 
     sv.prev.allNameplates = getNameplates()
     sv.prev.allHealthbars = getHealthbars()
-    sv.prev.combatCues = getCombatCues()
 
     applyAllHides()
 
@@ -191,16 +180,12 @@ function Rule:OnDisable()
     if sv.prev.allHealthbars ~= nil then
         setHealthbars(sv.prev.allHealthbars)
     end
-    if sv.prev.combatCues ~= nil then
-        setCombatCues(sv.prev.combatCues)
-    end
 
     hideTargetFrame(false)
     hideActionBar(false)
 
     sv.prev.allNameplates = nil
     sv.prev.allHealthbars = nil
-    sv.prev.combatCues = nil
 
 end
 

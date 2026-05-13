@@ -92,7 +92,7 @@ local RULES = {{
     text = "Hidden AOE Threats",
     icon = RULE_ICONS.aoe,
     tip = "Enemy area attacks leave no ground telegraphs. Danger must be sensed, not seen.",
-    ruleId = "HardcoreHUD"
+    ruleId = "HiddenAOEThreats"
 }, {
     text = "Locked Banks",
     icon = RULE_ICONS.bank,
@@ -102,7 +102,7 @@ local RULES = {{
     text = "Closed Guild Markets",
     icon = RULE_ICONS.guildstore,
     tip = "Guild traders and their markets are closed to you.",
-    ruleId = "NoBank"
+    ruleId = "NoGuildStore"
 }, {
     text = "Self-Reliant Journey",
     icon = RULE_ICONS.trade,
@@ -140,16 +140,19 @@ local DIFFICULTY_TIERS = {
     [1] = "|t24:24:/esoui/art/armory/buildicons/buildicon_58.dds|t  Novice",
     [2] = "|t24:24:/esoui/art/armory/buildicons/buildicon_39.dds|t  Adept",
     [3] = "|t24:24:/esoui/art/armory/buildicons/buildicon_34.dds|t  Master",
-    [4] = "|t24:24:/esoui/art/armory/buildicons/buildicon_18.dds|t  Legendary"
+    [4] = "|t24:24:/esoui/art/armory/buildicons/buildicon_18.dds|t  Legendary",
+    [5] = "|t24:24:/esoui/art/campaign/campaign_tabicon_summary_up.dds|t  Custom"
 }
 
 local TIER_RULE_IDS = {
-    [1] = {"HardcoreHUD", "NoCompass", "LimitedTP"},
-    [2] = {"HardcoreHUD", "NoCompass", "LimitedTP", "NoTrade", "NoBank", "NoCrafting", "NoSoulGems", "NoMail"},
-    [3] = {"HardcoreHUD", "NoCompass", "LimitedTP", "NoTrade", "NoBank", "NoCrafting", "NoSoulGems", "NoHealthBar",
-           "NoCP", "NoMail"},
-    [4] = {"HardcoreHUD", "NoCompass", "LimitedTP", "NoTrade", "NoBank", "NoCrafting", "NoSoulGems", "NoHealthBar",
-           "NoCP", "LimitedGear", "LimitedSets", "NoRepair", "EquipmentCitySkills", "NoMail"}
+    [1] = {"HardcoreHUD", "HiddenAOEThreats", "NoCompass", "LimitedTP"},
+    [2] = {"HardcoreHUD", "HiddenAOEThreats", "NoCompass", "LimitedTP", "NoTrade", "NoBank", "NoGuildStore",
+           "NoCrafting", "NoSoulGems", "NoMail"},
+    [3] = {"HardcoreHUD", "HiddenAOEThreats", "NoCompass", "LimitedTP", "NoTrade", "NoBank", "NoGuildStore",
+           "NoCrafting", "NoSoulGems", "NoHealthBar", "NoCP", "NoMail"},
+    [4] = {"HardcoreHUD", "HiddenAOEThreats", "NoCompass", "LimitedTP", "NoTrade", "NoBank", "NoGuildStore",
+           "NoCrafting", "NoSoulGems", "NoHealthBar", "NoCP", "LimitedGear", "LimitedSets", "NoRepair",
+           "EquipmentCitySkills", "NoMail"}
 }
 
 local function BuildSet(arr)
@@ -175,6 +178,8 @@ local function GetRulesSV()
     return HARDCORE.InitRulesSaved()
 end
 function HARDCORE.SetDifficultySliderEnabled(enabled)
+    HARDCORE._difficultyControlsEnabled = enabled and true or false
+
     if not HARDCORE.difficultySlider then
         return
     end
@@ -186,8 +191,20 @@ function HARDCORE.SetDifficultySliderEnabled(enabled)
     HARDCORE.difficultySlider:SetMouseEnabled(enabled)
 end
 
+local function IsCustomDifficultyTier(tier)
+    return tonumber(tier) == 5
+end
+
+local function GetRuleEnabledSetForUI(tier)
+    if IsCustomDifficultyTier(tier) then
+        local sv = GetRulesSV()
+        return sv.enabled or {}
+    end
+    return BuildSet(TIER_RULE_IDS[tier])
+end
+
 function HARDCORE.ApplyDifficultyPreset(tier)
-    tier = zo_clamp(tonumber(tier) or 1, 1, 4)
+    tier = zo_clamp(tonumber(tier) or 1, 1, 5)
     HARDCORE.saved.difficultyTier = tier
 
     local sv = GetRulesSV()
@@ -214,7 +231,7 @@ function HARDCORE.RefreshDifficultyUI()
         return
     end
     local tier = (HARDCORE.saved and HARDCORE.saved.difficultyTier) or 1
-    local enabledSet = BuildSet(TIER_RULE_IDS[tier])
+    local enabledSet = GetRuleEnabledSetForUI(tier)
 
     if HARDCORE.difficultyLabel then
         HARDCORE.difficultyLabel:SetText(DIFFICULTY_TIERS[tier] or ("Tier " .. tostring(tier)))
@@ -242,7 +259,10 @@ function HARDCORE.RefreshDifficultyUI()
             row._bg:SetAlpha(active and 0.18 or 0.05)
         end
 
-        row:SetMouseEnabled(active or isAlways)
+        row:SetMouseEnabled(true)
+        if row._hitArea then
+            row._hitArea:SetMouseEnabled(true)
+        end
     end
 end
 
@@ -621,7 +641,7 @@ local function CreateIntroWindow()
     local slider = wm:CreateControlFromVirtual("HARDCORE_DifficultySlider", inner, "ZO_Slider")
     slider:SetDimensions(520, 18)
     slider:SetAnchor(TOP, diffLabel, BOTTOM, 0, 10)
-    slider:SetMinMax(1, 4)
+    slider:SetMinMax(1, 5)
     slider:SetValueStep(1)
     slider:SetAllowDraggingFromThumb(true)
     slider:SetValue(tier)
@@ -677,18 +697,52 @@ local function CreateIntroWindow()
         rowCtrl._ruleData = rule
         table.insert(HARDCORE._ruleRows, rowCtrl)
 
-        rowCtrl:SetHandler("OnMouseEnter", function()
+        local hitArea = wm:CreateControl(nil, rowCtrl, CT_CONTROL)
+        hitArea:SetAnchorFill()
+        hitArea:SetMouseEnabled(true)
+        rowCtrl._hitArea = hitArea
+
+        local function ToggleCustomRule()
+            if rule.alwaysOn or not rule.ruleId then
+                return
+            end
+            if not IsCustomDifficultyTier(HARDCORE.saved and HARDCORE.saved.difficultyTier) then
+                return
+            end
+            if HARDCORE.saved and HARDCORE.saved.isActive then
+                return
+            end
+            if HARDCORE._difficultyControlsEnabled == false then
+                return
+            end
+
+            local sv = GetRulesSV()
+            local enabled = sv.enabled[rule.ruleId] == true
+            if HARDCORE.RuleManager and HARDCORE.RuleManager.SetRuleEnabled then
+                HARDCORE.RuleManager:SetRuleEnabled(rule.ruleId, not enabled)
+            else
+                sv.enabled[rule.ruleId] = not enabled
+            end
+            HARDCORE.RefreshDifficultyUI()
+        end
+
+        local function OnEnter()
             label:SetColor(COLOR.gold:UnpackRGBA())
             ShowTip(rowCtrl, rule.tip)
-        end)
-        rowCtrl:SetHandler("OnMouseExit", function()
+        end
+
+        local function OnExit()
             HideTip()
             if HARDCORE.RefreshDifficultyUI then
                 HARDCORE.RefreshDifficultyUI()
             else
                 label:SetColor(COLOR.white:UnpackRGBA())
             end
-        end)
+        end
+
+        hitArea:SetHandler("OnMouseEnter", OnEnter)
+        hitArea:SetHandler("OnMouseExit", OnExit)
+        hitArea:SetHandler("OnMouseUp", ToggleCustomRule)
 
         return rowCtrl
     end
@@ -697,7 +751,12 @@ local function CreateIntroWindow()
         CreateRuleRow(scrollChild, i, rule)
     end
 
-    HARDCORE.ApplyDifficultyPreset((HARDCORE.saved and HARDCORE.saved.difficultyTier) or 1)
+    local savedTier = (HARDCORE.saved and HARDCORE.saved.difficultyTier) or 1
+    if IsCustomDifficultyTier(savedTier) then
+        HARDCORE.saved.difficultyTier = savedTier
+    else
+        HARDCORE.ApplyDifficultyPreset(savedTier)
+    end
     HARDCORE.RefreshDifficultyUI()
 
     local function GetHUDSV()
@@ -841,8 +900,10 @@ local function CreateIntroWindow()
             btn:SetHandler("OnMouseExit", HideTip)
             btn:SetHandler("OnClicked", function()
                 local tier = (HARDCORE.saved and tonumber(HARDCORE.saved.difficultyTier)) or 1
+                local rulesSV = GetRulesSV()
 
-                if tier >= 3 and HARDCORE_HasAnyChampionSlotted() then
+                if ((tier >= 3 and not IsCustomDifficultyTier(tier)) or
+                    (IsCustomDifficultyTier(tier) and rulesSV.enabled.NoCP == true)) and HARDCORE_HasAnyChampionSlotted() then
                     PlaySound(SOUNDS.NEGATIVE_CLICK)
                     HARDCORE_ShowCPBlockedDialog()
                     return

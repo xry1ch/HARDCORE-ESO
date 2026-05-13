@@ -3,7 +3,7 @@
 ## Version: 1.0.0
 ## APIVersion: 101049
 ## DependsOn: LibAddonMenu-2.0>=41
-## SavedVariables: HARDCORE_SV HARDCORE_Rules_SV HARDCORE_HUD_SV HARDCORE_HUD_BACKUP
+## SavedVariables: HARDCORE_SV HARDCORE_Rules_SV HARDCORE_HUD_SV HARDCORE_HUD_BACKUP HARDCORE_AOE_SV
 
 HARDCORE.lua
 RulesManager.lua
@@ -12,6 +12,7 @@ rules/Rule_NoCrafting.lua
 rules/Rule_LimitedGear.lua
 rules/Rule_NoCompass.lua
 rules/Rule_HardcoreHUD.lua
+rules/Rule_HiddenAOEThreats.lua
 rules/Rule_SkillsInCity.lua
 rules/Rule_NoBankAndStore.lua
 rules/Rule_NoRepair.lua
