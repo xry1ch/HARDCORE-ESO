@@ -14,6 +14,10 @@ Rule._installed = false
 local originalVolume = nil
 local volumeLowered = false
 local VOLUME_LOW_HP_THRESHOLD = 0.15
+local VOLUME_UPDATE_MIN_DELTA = 0.01
+local VOLUME_UPDATE_MIN_INTERVAL_MS = 250
+local lastAppliedVolume = nil
+local lastVolumeSetMs = 0
 
 local function IsVisionDimDisabled()
     return HARDCORE and HARDCORE.saved and HARDCORE.saved.disableVisionDim
@@ -46,14 +50,24 @@ end
 
 local function LowerVolume(hp)
     if originalVolume == nil then
-        originalVolume = GetSetting(SETTING_TYPE_AUDIO, AUDIO_SETTING_AUDIO_VOLUME)
+        originalVolume = tonumber(GetSetting(SETTING_TYPE_AUDIO, AUDIO_SETTING_AUDIO_VOLUME)) or 1
     end
     
     local healthFactor = zo_clamp(hp / VOLUME_LOW_HP_THRESHOLD, 0, 1)
     local volumeFactor = 0.05 + (healthFactor * 0.95)
     local newVolume = originalVolume * volumeFactor
-    
+
+    local now = GetFrameTimeMilliseconds()
+    if lastAppliedVolume ~= nil then
+        local delta = math.abs(newVolume - lastAppliedVolume)
+        if delta < VOLUME_UPDATE_MIN_DELTA or (now - lastVolumeSetMs) < VOLUME_UPDATE_MIN_INTERVAL_MS then
+            return
+        end
+    end
+
     SetSetting(SETTING_TYPE_AUDIO, AUDIO_SETTING_AUDIO_VOLUME, tostring(newVolume))
+    lastAppliedVolume = newVolume
+    lastVolumeSetMs = now
     volumeLowered = true
 end
 
@@ -63,6 +77,8 @@ local function RestoreVolume()
     end
     SetSetting(SETTING_TYPE_AUDIO, AUDIO_SETTING_AUDIO_VOLUME, tostring(originalVolume))
     volumeLowered = false
+    lastAppliedVolume = nil
+    lastVolumeSetMs = 0
 end
 
 local function ApplyVolumeFromHP(hp)
@@ -387,6 +403,8 @@ function Rule:OnDisable()
     
     ApplyVolumeFromHP(1)
     originalVolume = nil
+    lastAppliedVolume = nil
+    lastVolumeSetMs = 0
 end
 
 function Rule:RefreshOptions()

@@ -24,18 +24,25 @@ end
 local function AlertBlocked()
     if ShouldThrottleAlert() then return end
     ZO_Alert(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK,
-        "HARDCORE: Fast travel is limited to wayshrine → wayshrine. Recall from map is disabled.")
+        "HARDCORE: Fast travel is limited to wayshrine-to-wayshrine. Recall from map is disabled.")
 end
 
 local function IsAtWayshrine()
-    local itype = GetInteractionType()
-    return itype == INTERACTION_FAST_TRAVEL
+    return GetInteractionType() == INTERACTION_FAST_TRAVEL
+end
+
+local function BlockWhenActive()
+    if Rule.active then
+        AlertBlocked()
+        return true
+    end
+    return false
 end
 
 local function InstallHooks()
     if Rule._hooksInstalled then return end
 
-    ZO_PreHook("FastTravelToNode", function(nodeIndex)
+    ZO_PreHook("FastTravelToNode", function()
         if not Rule.active then return false end
         if not IsAtWayshrine() then
             AlertBlocked()
@@ -44,12 +51,18 @@ local function InstallHooks()
         return false
     end)
 
-    local worldMapScene = SCENE_MANAGER and SCENE_MANAGER:GetScene("worldMap")
-    if worldMapScene then
-        worldMapScene:RegisterCallback("StateChange", function(_, newState)
-            if Rule.active and newState == SCENE_SHOWING and not IsAtWayshrine() then
-            end
-        end)
+    local blockedJumpFunctions = {
+        "JumpToGuildMember",
+        "JumpToGroupLeader",
+        "JumpToGroupMember",
+        "JumpToFriend",
+        "TravelToKeep"
+    }
+
+    for _, functionName in ipairs(blockedJumpFunctions) do
+        if _G[functionName] then
+            ZO_PreHook(functionName, BlockWhenActive)
+        end
     end
 
     Rule._hooksInstalled = true

@@ -49,7 +49,7 @@ function RuleManager:ForEachRule(fn)
     end
 end
 
-function RuleManager:EnableRule(id)
+function RuleManager:EnableRule(id, persist)
     local rule = self.rules[id]
     if not rule then
         return
@@ -61,13 +61,13 @@ function RuleManager:EnableRule(id)
         rule:OnEnable()
     end
     self.enabledRuntime[id] = true
-    local sv = GetCharSV()
+    local sv = persist and GetCharSV()
     if sv then
         sv.enabled[id] = true
     end
 end
 
-function RuleManager:DisableRule(id)
+function RuleManager:DisableRule(id, persist)
     local rule = self.rules[id]
     if not rule then
         return
@@ -79,9 +79,23 @@ function RuleManager:DisableRule(id)
         rule:OnDisable()
     end
     self.enabledRuntime[id] = false
-    local sv = GetCharSV()
+    local sv = persist and GetCharSV()
     if sv then
         sv.enabled[id] = false
+    end
+end
+
+function RuleManager:SetRuleEnabled(id, enabled)
+    local sv = GetCharSV()
+    if sv then
+        sv.enabled[id] = enabled and true or false
+    end
+    if HARDCORE and HARDCORE.saved and HARDCORE.saved.isActive then
+        if enabled then
+            self:EnableRule(id)
+        else
+            self:DisableRule(id)
+        end
     end
 end
 

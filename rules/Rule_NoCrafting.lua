@@ -14,18 +14,25 @@ Rule._hooksInstalled = false
 local CRAFTING_SCENES = {
     smithing = true,
     enchanting = true,
+    scribing = true,
+    scribingKeyboard = true,
+    scribingGamepad = true,
     retrait = true,
-    universalDeconstruction = true
+    retrait_keyboard_root = true,
+    retrait_gamepad_root = true,
+    retrait_gamepad = true,
+    universalDeconstructionSceneKeyboard = true,
+    universalDeconstructionSceneGamepad = true
 }
 
 local function Announce()
     ZO_Alert(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, "HARDCORE: Only Alchemy and Cooking are allowed.")
 end
 
-local function CleanExit()
+local function CleanExit(interactionType)
     zo_callLater(function()
         if IsInteracting and IsInteracting() and EndInteraction then
-            EndInteraction(INTERACTION_CRAFT)
+            EndInteraction(interactionType or INTERACTION_CRAFT)
         end
         if SCENE_MANAGER then
             SCENE_MANAGER:ShowBaseScene()
@@ -76,6 +83,14 @@ local function InstallHooks()
             Announce()
             CleanExit()
         end
+    end)
+
+    EVENT_MANAGER:RegisterForEvent(NS .. "_RETRAIT", EVENT_RETRAIT_STATION_INTERACT_START, function()
+        if not Rule.active then
+            return
+        end
+        Announce()
+        CleanExit(INTERACTION_RETRAIT)
     end)
 
     Rule._hooksInstalled = true
