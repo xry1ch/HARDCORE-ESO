@@ -13,6 +13,7 @@ HARDCORE.defaults = {
     difficultyTier = 2,
     disableVisionDim = false,
     disableLowHealthVolume = false,
+    debugMode = false,
     hasSeenCongrats = false,
     hasDied = false
 }
@@ -45,7 +46,8 @@ local RULE_ICONS = {
     permadeath = "/esoui/art/trials/vitalitydepletion.dds",
     soulgem = "/esoui/art/inventory/inventory_tabicon_soulgem_down.dds",
     bank = "/esoui/art/icons/servicemappins/servicepin_bank.dds",
-    guildstore = "/esoui/art/tutorial/gamepad/gp_playermenu_icon_guilds.dds"
+    guildstore = "/esoui/art/tutorial/gamepad/gp_playermenu_icon_guilds.dds",
+    rations = "/esoui/art/tradinghouse/gamepad/gp_tradinghouse_materials_provisioning_food.dds"
 }
 
 local RULES = {{
@@ -144,6 +146,19 @@ local DIFFICULTY_TIERS = {
     [5] = "|t24:24:/esoui/art/campaign/campaign_tabicon_summary_up.dds|t  Custom"
 }
 
+local FEATS = {{
+    title = "Trail Rations",
+    flavor = "Survival meters track hunger and thirst. Eat food and drink often, or the road will close in and darken your vision.",
+    icon = RULE_ICONS.rations,
+    difficulty = 2,
+    ruleId = "TrailRations"
+}}
+local FEAT_RULE_IDS = {
+    TrailRations = true
+}
+
+local FEATS_EMPTY_TEXT = "No feats are available yet."
+
 local TIER_RULE_IDS = {
     [1] = {"HardcoreHUD", "HiddenAOEThreats", "NoCompass", "LimitedTP"},
     [2] = {"HardcoreHUD", "HiddenAOEThreats", "NoCompass", "LimitedTP", "NoTrade", "NoBank", "NoGuildStore",
@@ -212,11 +227,15 @@ function HARDCORE.ApplyDifficultyPreset(tier)
 
     if HARDCORE.RuleManager and HARDCORE.RuleManager.ForEachRule then
         HARDCORE.RuleManager:ForEachRule(function(id, _rule)
-            sv.enabled[id] = enabledSet[id] == true
+            if not FEAT_RULE_IDS[id] then
+                sv.enabled[id] = enabledSet[id] == true
+            end
         end)
     else
         for id in pairs(sv.enabled) do
-            sv.enabled[id] = enabledSet[id] == true
+            if not FEAT_RULE_IDS[id] then
+                sv.enabled[id] = enabledSet[id] == true
+            end
         end
         for id in pairs(enabledSet) do
             sv.enabled[id] = true
@@ -356,6 +375,34 @@ local function HARDCORE_EnableMinHpTracking()
     end
 end
 
+function HARDCORE.SetMainPanelMode(active)
+    active = active and true or false
+
+    if HARDCORE.setupControls then
+        for _, ctrl in ipairs(HARDCORE.setupControls) do
+            if ctrl then
+                ctrl:SetHidden(active)
+            end
+        end
+    end
+
+    if HARDCORE.challengeControls then
+        for _, ctrl in ipairs(HARDCORE.challengeControls) do
+            if ctrl then
+                ctrl:SetHidden(not active)
+            end
+        end
+    end
+
+    if HARDCORE.activeStats then
+        HARDCORE.activeStats:SetHidden(not active)
+    end
+
+    if active and HARDCORE.UpdateActiveStatsUI then
+        HARDCORE.UpdateActiveStatsUI()
+    end
+end
+
 local function HARDCORE_DisableMinHpTracking()
     EVENT_MANAGER:UnregisterForEvent(MINHP_EVENT_NAME, EVENT_POWER_UPDATE)
 end
@@ -376,8 +423,8 @@ function HARDCORE.BeginChallengeRun()
         HARDCORE.RuleManager:SetActive(true)
     end
 
-    if HARDCORE.ToggleIntro then
-        HARDCORE.ToggleIntro(false)
+    if HARDCORE.UpdateActionButton then
+        HARDCORE.UpdateActionButton()
     end
 end
 
@@ -430,8 +477,16 @@ local function AddHardcoreMainMenuButton()
                     HARDCORE.ShowCongratulationsWindow()
                     if bar then ZO_MenuBar_ClearSelection(bar) end
                 else
-                    ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.ABILITY_SKILL_PURCHASED,
-                        "HARDCORE: Challenge is active.")
+                    if HARDCORE.ToggleIntro then
+                        HARDCORE.ToggleIntro()
+                    end
+                    if bar and HARDCORE.window then
+                        if HARDCORE.window:IsHidden() then
+                            ZO_MenuBar_ClearSelection(bar)
+                        else
+                            ZO_MenuBar_SelectDescriptor(bar, "HARDCORE_MAINMENU", true)
+                        end
+                    end
                 end
             else
                 if HARDCORE.ToggleIntro then
@@ -541,7 +596,7 @@ local function CreateIntroWindow()
     win:SetResizeHandleSize(0)
     win:SetHidden(true)
     win:SetAnchor(CENTER, GuiRoot, CENTER, 0, -40)
-    win:SetDimensions(900, 555)
+    win:SetDimensions(980, 610)
 
     local frame = wm:CreateControl(nil, win, CT_BACKDROP)
     frame:SetAnchorFill()
@@ -555,16 +610,16 @@ local function CreateIntroWindow()
 
     local bg = wm:CreateControl("HARDCORE_InnerBG", inner, CT_TEXTURE)
     bg:SetAnchorFill(inner)
-    bg:SetTexture("/esoui/art/loadingscreens/loadscreen_shadastear_01.dds")
+    bg:SetTexture("/esoui/art/loadingscreens/loadscreen_bw_prologue2_01.dds")
     bg:SetTextureCoords(0, 1, 0, 1)
     bg:SetDrawTier(DT_LOW)
     bg:SetDrawLayer(DL_BACKGROUND)
-    bg:SetAlpha(0.60)
+    bg:SetAlpha(0.64)
     bg:SetBlendMode(TEX_BLEND_COLOR_ALPHA)
 
     local wash = wm:CreateControl("HARDCORE_InnerWash", inner, CT_BACKDROP)
     wash:SetAnchorFill(inner)
-    wash:SetCenterColor(0, 0, 0, 0.40)
+    wash:SetCenterColor(0, 0, 0, 0.46)
     wash:SetEdgeColor(0, 0, 0, 0)
     wash:SetEdgeTexture(nil, 1, 1, 0, 0)
     wash:SetDrawTier(DT_LOW)
@@ -620,12 +675,14 @@ local function CreateIntroWindow()
     divider:SetAlpha(0.55)
 
     local sub = wm:CreateControl(nil, inner, CT_LABEL)
-    sub:SetAnchor(TOP, divider, BOTTOM, 0, 6)
+    sub:SetAnchor(TOP, divider, BOTTOM, 0, 10)
     sub:SetFont("$(MEDIUM_FONT)|18|soft-shadow-thin")
     sub:SetHorizontalAlignment(TEXT_ALIGN_CENTER)
     sub:SetColor(COLOR.gray:UnpackRGBA())
     sub:SetText("Accept the challenge to enable the ruleset on this character.")
     HARDCORE.subtitle = sub
+    HARDCORE.setupControls = {}
+    HARDCORE.challengeControls = {}
 
     -- Difficulty preset slider
     HARDCORE._ruleRows = {}
@@ -637,6 +694,7 @@ local function CreateIntroWindow()
     diffLabel:SetHorizontalAlignment(TEXT_ALIGN_CENTER)
     diffLabel:SetColor(COLOR.gold:UnpackRGBA())
     HARDCORE.difficultyLabel = diffLabel
+    table.insert(HARDCORE.setupControls, diffLabel)
 
     local slider = wm:CreateControlFromVirtual("HARDCORE_DifficultySlider", inner, "ZO_Slider")
     slider:SetDimensions(520, 18)
@@ -646,6 +704,7 @@ local function CreateIntroWindow()
     slider:SetAllowDraggingFromThumb(true)
     slider:SetValue(tier)
     HARDCORE.difficultySlider = slider
+    table.insert(HARDCORE.setupControls, slider)
 
     slider:SetHandler("OnValueChanged", function(_, value, eventReason)
         if eventReason == EVENT_REASON_HARDWARE then
@@ -656,11 +715,12 @@ local function CreateIntroWindow()
     end)
 
     local scroll = wm:CreateControlFromVirtual("HARDCORE_RulesScroll", inner, "ZO_ScrollContainer")
-    scroll:SetAnchor(TOPLEFT, inner, TOPLEFT, 24, 200)
-    scroll:SetDimensions(852, 280)
+    scroll:SetAnchor(TOPLEFT, inner, TOPLEFT, 34, 205)
+    scroll:SetDimensions(908, 318)
     local scrollChild = scroll:GetNamedChild("ScrollChild")
+    table.insert(HARDCORE.setupControls, scroll)
 
-    local COLS, COL_W, ROW_H, ICON = 3, 280, 44, 28
+    local COLS, COL_W, ROW_H, ICON = 3, 300, 44, 28
 
     local function CreateRuleRow(parent, idx, rule)
         local col = ((idx - 1) % COLS) + 1
@@ -751,6 +811,176 @@ local function CreateIntroWindow()
         CreateRuleRow(scrollChild, i, rule)
     end
 
+    local challengeHeader = wm:CreateControl("HARDCORE_ChallengesHeader", inner, CT_CONTROL)
+    challengeHeader:SetAnchor(TOPLEFT, inner, TOPLEFT, 54, 122)
+    challengeHeader:SetDimensions(860, 40)
+    challengeHeader:SetHidden(true)
+    table.insert(HARDCORE.challengeControls, challengeHeader)
+
+    local challengeHeaderLine = wm:CreateControl(nil, challengeHeader, CT_TEXTURE)
+    challengeHeaderLine:SetAnchor(BOTTOM, challengeHeader, BOTTOM, 0, 0)
+    challengeHeaderLine:SetDimensions(800, 8)
+    challengeHeaderLine:SetTexture("/esoui/art/quest/questjournal_divider.dds")
+    challengeHeaderLine:SetAlpha(0.75)
+
+    local challengeHeaderIcon = wm:CreateControl(nil, challengeHeader, CT_TEXTURE)
+    challengeHeaderIcon:SetAnchor(LEFT, challengeHeader, LEFT, 0, -3)
+    challengeHeaderIcon:SetDimensions(26, 26)
+    challengeHeaderIcon:SetTexture("/esoui/art/quest/questjournal_trackedquest_icon.dds")
+    challengeHeaderIcon:SetAlpha(0.86)
+
+    local challengeHeaderLabel = wm:CreateControl(nil, challengeHeader, CT_LABEL)
+    challengeHeaderLabel:SetAnchor(LEFT, challengeHeaderIcon, RIGHT, 9, -2)
+    challengeHeaderLabel:SetFont("$(BOLD_FONT)|23|soft-shadow-thick")
+    challengeHeaderLabel:SetColor(COLOR.gold:UnpackRGBA())
+    challengeHeaderLabel:SetText("Available Feats")
+
+    local challengeScroll = wm:CreateControlFromVirtual("HARDCORE_ChallengesScroll", inner, "ZO_ScrollContainer")
+    challengeScroll:SetAnchor(TOPLEFT, inner, TOPLEFT, 54, 178)
+    challengeScroll:SetDimensions(860, 318)
+    challengeScroll:SetHidden(true)
+    table.insert(HARDCORE.challengeControls, challengeScroll)
+    local challengeScrollChild = challengeScroll:GetNamedChild("ScrollChild")
+
+    local function CreateStars(parent, difficulty)
+        local stars = wm:CreateControl(nil, parent, CT_CONTROL)
+        difficulty = zo_clamp(tonumber(difficulty) or 1, 1, 5)
+        stars:SetDimensions((difficulty * 23) - 4, 24)
+        local starTexture = "/esoui/art/targetmarkers/target_gold_star_64.dds"
+
+        for i = 1, difficulty do
+            local star = wm:CreateControl(nil, stars, CT_TEXTURE)
+            star:SetDimensions(19, 19)
+            star:SetAnchor(LEFT, stars, LEFT, (i - 1) * 23, 0)
+            star:SetTexture(starTexture)
+            star:SetAlpha(0.95)
+        end
+
+        return stars
+    end
+
+    local function CreateChallengeRow(parent, idx, challenge)
+        local rowCtrl = wm:CreateControl("HARDCORE_ChallengeRow" .. idx, parent, CT_CONTROL)
+        rowCtrl:SetAnchor(TOPLEFT, parent, TOPLEFT, 0, (idx - 1) * 104)
+        rowCtrl:SetDimensions(842, 92)
+        rowCtrl:SetMouseEnabled(true)
+
+        local bg = wm:CreateControl(nil, rowCtrl, CT_BACKDROP)
+        bg:SetAnchorFill()
+        bg:SetCenterColor(0.02, 0.015, 0.01, 0.76)
+        bg:SetEdgeTexture("/esoui/art/chatwindow/chat_bg_edge.dds", 32, 4, 4)
+        bg:SetEdgeColor(0.9, 0.72, 0.34, 0.30)
+
+        local glow = wm:CreateControl(nil, rowCtrl, CT_TEXTURE)
+        glow:SetAnchorFill()
+        glow:SetTexture("/esoui/art/quest/texthighlight.dds")
+        glow:SetAlpha(0.07)
+        glow:SetBlendMode(TEX_BLEND_ADD)
+
+        local iconFrame = wm:CreateControl(nil, rowCtrl, CT_BACKDROP)
+        iconFrame:SetAnchor(LEFT, rowCtrl, LEFT, 16, 0)
+        iconFrame:SetDimensions(42, 42)
+        iconFrame:SetCenterColor(0, 0, 0, 0.20)
+        iconFrame:SetEdgeTexture(nil, 1, 1, 0, 0)
+        iconFrame:SetEdgeColor(0, 0, 0, 0)
+
+        local icon = wm:CreateControl(nil, iconFrame, CT_TEXTURE)
+        icon:SetAnchor(CENTER, iconFrame, CENTER, 0, 0)
+        icon:SetDimensions(26, 26)
+        icon:SetTexture(challenge.icon)
+        icon:SetAlpha(0.95)
+
+        local titleLabel = wm:CreateControl(nil, rowCtrl, CT_LABEL)
+        titleLabel:SetAnchor(TOPLEFT, iconFrame, TOPRIGHT, 16, -8)
+        titleLabel:SetDimensions(478, 25)
+        titleLabel:SetFont("$(BOLD_FONT)|20|soft-shadow-thick")
+        titleLabel:SetColor(COLOR.white:UnpackRGBA())
+        titleLabel:SetText(challenge.title)
+        titleLabel:SetWrapMode(TEXT_WRAP_MODE_ELLIPSIS)
+
+        local flavorLabel = wm:CreateControl(nil, rowCtrl, CT_LABEL)
+        flavorLabel:SetAnchor(TOPLEFT, titleLabel, BOTTOMLEFT, 0, 2)
+        flavorLabel:SetDimensions(500, 48)
+        flavorLabel:SetFont("$(MEDIUM_FONT)|15|soft-shadow-thin")
+        flavorLabel:SetColor(COLOR.gray:UnpackRGBA())
+        flavorLabel:SetText(challenge.flavor)
+        flavorLabel:SetWrapMode(TEXT_WRAP_MODE_TRUNCATE)
+
+        local stars = CreateStars(rowCtrl, challenge.difficulty or 1)
+        stars:SetAnchor(TOPRIGHT, rowCtrl, TOPRIGHT, -126, 24)
+
+        local difficultyLabel = wm:CreateControl(nil, rowCtrl, CT_LABEL)
+        difficultyLabel:SetAnchor(TOP, stars, BOTTOM, -6, -3)
+        difficultyLabel:SetDimensions(124, 20)
+        difficultyLabel:SetFont("$(MEDIUM_FONT)|14|soft-shadow-thin")
+        difficultyLabel:SetHorizontalAlignment(TEXT_ALIGN_CENTER)
+        difficultyLabel:SetColor(COLOR.dim:UnpackRGBA())
+        difficultyLabel:SetText("Difficulty")
+
+        local acceptButton = wm:CreateControlFromVirtual("HARDCORE_ChallengeAccept" .. idx, rowCtrl, "ZO_DefaultButton")
+        acceptButton:SetAnchor(RIGHT, rowCtrl, RIGHT, -16, 0)
+        acceptButton:SetDimensions(104, 34)
+        local function IsAccepted()
+            return challenge.ruleId and GetRulesSV().enabled[challenge.ruleId] == true
+        end
+        local function RefreshAcceptButton()
+            local accepted = IsAccepted()
+            acceptButton:SetText(accepted and "Accepted" or "Accept")
+            acceptButton:SetEnabled(not accepted)
+            acceptButton:SetState(accepted and BSTATE_DISABLED or BSTATE_NORMAL, accepted)
+        end
+        RefreshAcceptButton()
+        acceptButton:SetHandler("OnMouseEnter", function()
+            titleLabel:SetColor(COLOR.gold:UnpackRGBA())
+            if IsAccepted() then
+                ShowTip(acceptButton, "This optional challenge is active for the current hardcore run.")
+            else
+                ShowTip(acceptButton, "Accept this optional challenge for the current hardcore run.")
+            end
+        end)
+        acceptButton:SetHandler("OnMouseExit", function()
+            titleLabel:SetColor(COLOR.white:UnpackRGBA())
+            HideTip()
+        end)
+        acceptButton:SetHandler("OnClicked", function()
+            if not challenge.ruleId or IsAccepted() then
+                return
+            end
+            if HARDCORE.RuleManager and HARDCORE.RuleManager.SetRuleEnabled then
+                HARDCORE.RuleManager:SetRuleEnabled(challenge.ruleId, true)
+            else
+                GetRulesSV().enabled[challenge.ruleId] = true
+            end
+            RefreshAcceptButton()
+            PlaySound(SOUNDS.QUEST_ACCEPTED)
+            ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.QUEST_ACCEPTED,
+                "HARDCORE: " .. challenge.title .. " accepted.")
+        end)
+
+        rowCtrl:SetHandler("OnMouseEnter", function()
+            bg:SetCenterColor(0.055, 0.04, 0.025, 0.84)
+            bg:SetEdgeColor(1, 0.84, 0.42, 0.52)
+        end)
+        rowCtrl:SetHandler("OnMouseExit", function()
+            bg:SetCenterColor(0.02, 0.015, 0.01, 0.76)
+            bg:SetEdgeColor(0.9, 0.72, 0.34, 0.30)
+        end)
+
+        return rowCtrl
+    end
+
+    local emptyFeatsLabel = wm:CreateControl(nil, challengeScrollChild, CT_LABEL)
+    emptyFeatsLabel:SetAnchor(TOPLEFT, challengeScrollChild, TOPLEFT, 16, 16)
+    emptyFeatsLabel:SetDimensions(810, 32)
+    emptyFeatsLabel:SetFont("$(MEDIUM_FONT)|18|soft-shadow-thin")
+    emptyFeatsLabel:SetColor(COLOR.gray:UnpackRGBA())
+    emptyFeatsLabel:SetText(FEATS_EMPTY_TEXT)
+    emptyFeatsLabel:SetHidden(#FEATS > 0)
+
+    for i, challenge in ipairs(FEATS) do
+        CreateChallengeRow(challengeScrollChild, i, challenge)
+    end
+
     local savedTier = (HARDCORE.saved and HARDCORE.saved.difficultyTier) or 1
     if IsCustomDifficultyTier(savedTier) then
         HARDCORE.saved.difficultyTier = savedTier
@@ -805,14 +1035,20 @@ local function CreateIntroWindow()
 
     local stats = wm:CreateControl("HARDCORE_ActiveStats", win, CT_CONTROL)
     HARDCORE.activeStats = stats
-    stats:SetAnchor(LEFT, btn, RIGHT, 60, 0)
+    stats:SetAnchor(LEFT, btn, RIGHT, 82, 0)
     stats:SetDimensions(260, 44)
     stats:SetHidden(true)
+
+    local statsBg = wm:CreateControl(nil, stats, CT_BACKDROP)
+    statsBg:SetAnchorFill()
+    statsBg:SetCenterColor(0.02, 0.015, 0.01, 0.56)
+    statsBg:SetEdgeTexture("/esoui/art/chatwindow/chat_bg_edge.dds", 32, 4, 4)
+    statsBg:SetEdgeColor(0.9, 0.72, 0.34, 0.26)
 
     local classIcon = wm:CreateControl(nil, stats, CT_TEXTURE)
     stats.classIcon = classIcon
     classIcon:SetDimensions(28, 28)
-    classIcon:SetAnchor(TOPLEFT, stats, TOPLEFT, 0, 8)
+    classIcon:SetAnchor(TOPLEFT, stats, TOPLEFT, 12, 8)
     classIcon:SetAlpha(0.95)
 
     local levelLabel = wm:CreateControl(nil, stats, CT_LABEL)
@@ -850,11 +1086,17 @@ local function CreateIntroWindow()
         if HARDCORE.SetDifficultySliderEnabled then
             HARDCORE.SetDifficultySliderEnabled(not isActive)
         end
+        if HARDCORE.SetMainPanelMode then
+            HARDCORE.SetMainPanelMode(isActive)
+        end
 
         if isActive then
             btn:SetEnabled(true)
             btn:SetState(BSTATE_NORMAL, false)
-            btn:SetText("Surrender Challenge")
+            btn:SetText("Surrender")
+            if HARDCORE.subtitle then
+                HARDCORE.subtitle:SetText("")
+            end
             btn:SetHandler("OnMouseEnter", function()
                 ShowTip(btn, "End the hardcore challenge and deactivate the rules.")
             end)
@@ -887,8 +1129,8 @@ local function CreateIntroWindow()
             btn:SetHandler("OnMouseExit", HideTip)
             btn:SetHandler("OnClicked", nil)
             HARDCORE_DisableMinHpTracking()
-            if HARDCORE.activeStats then
-                HARDCORE.activeStats:SetHidden(true)
+            if HARDCORE.SetMainPanelMode then
+                HARDCORE.SetMainPanelMode(false)
             end
         else
             btn:SetEnabled(true)
@@ -908,8 +1150,6 @@ local function CreateIntroWindow()
                     HARDCORE_ShowCPBlockedDialog()
                     return
                 end
-                HARDCORE.ToggleIntro()
-                DeactivateMenuButton()
                 PlaySound(SOUNDS.INSTANCE_SHUTDOWN)
                 PlaySound(SOUNDS.QUEST_ACCEPTED)
                 PlaySound(SOUNDS.ENDLESS_DUNGEON_SCORE_FINAL_FLIP)
@@ -927,13 +1167,13 @@ local function CreateIntroWindow()
                 ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.ABILITY_SKILL_PURCHASED,
                     "HARDCORE: Challenge active. Good luck!")
                 if HARDCORE.subtitle then
-                    HARDCORE.subtitle:SetText("HARDCORE rules are active on this character.")
+                    HARDCORE.subtitle:SetText("")
                 end
-                HARDCORE.ToggleIntro()
+                HARDCORE.UpdateActionButton()
             end)
             HARDCORE_DisableMinHpTracking()
-            if HARDCORE.activeStats then
-                HARDCORE.activeStats:SetHidden(true)
+            if HARDCORE.SetMainPanelMode then
+                HARDCORE.SetMainPanelMode(false)
             end
         end
     end
@@ -977,7 +1217,7 @@ function HARDCORE.ToggleIntro(playSound)
         end
         if HARDCORE.subtitle then
             if HARDCORE.saved.isActive then
-                HARDCORE.subtitle:SetText("HARDCORE rules are active on this character.")
+                HARDCORE.subtitle:SetText("")
             elseif HARDCORE.saved.hasDied then
                 HARDCORE.subtitle:SetText("This character has died. The challenge has ended permanently.")
             else
@@ -999,7 +1239,67 @@ function HARDCORE.ToggleIntro(playSound)
 end
 
 local function RegisterSlash()
-    SLASH_COMMANDS["/hc"] = function()
+    local function PrintDebugHelp()
+        d("HARDCORE debug commands:")
+        d("/hc debug help")
+        d("/hc debug status")
+        d("/hc debug rations full")
+        d("/hc debug rations empty")
+        d("/hc debug rations set <hunger> <thirst>")
+        d("/hc debug rations decay <minutes>")
+        d("/hc debug rations hud")
+    end
+
+    local function RunDebugCommand(args)
+        if not (HARDCORE.saved and HARDCORE.saved.debugMode) then
+            ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK,
+                "HARDCORE: Debug mode is disabled in addon settings.")
+            return
+        end
+
+        args = args or ""
+        local tokens = {}
+        for token in string.gmatch(args, "%S+") do
+            tokens[#tokens + 1] = string.lower(token)
+        end
+
+        local area = tokens[2]
+        local action = tokens[3]
+        if not area or area == "help" then
+            PrintDebugHelp()
+            return
+        end
+
+        if area == "status" then
+            d("HARDCORE active=" .. tostring(HARDCORE.saved and HARDCORE.saved.isActive) ..
+                " died=" .. tostring(HARDCORE.saved and HARDCORE.saved.hasDied) ..
+                " tier=" .. tostring(HARDCORE.saved and HARDCORE.saved.difficultyTier))
+            if HARDCORE.DebugTrailRationsStatus then
+                HARDCORE.DebugTrailRationsStatus()
+            end
+            return
+        end
+
+        if area ~= "rations" then
+            PrintDebugHelp()
+            return
+        end
+
+        if not HARDCORE.DebugTrailRationsCommand then
+            d("HARDCORE: Trail Rations debug helpers are not loaded.")
+            return
+        end
+
+        HARDCORE.DebugTrailRationsCommand(action or "help", tokens[4], tokens[5])
+    end
+
+    SLASH_COMMANDS["/hc"] = function(args)
+        args = args or ""
+        if string.match(string.lower(args), "^%s*debug") then
+            RunDebugCommand(args)
+            return
+        end
+
         if HARDCORE.saved and HARDCORE.saved.isActive and GetUnitLevel("player") >= 50 then
             HARDCORE.ShowCongratulationsWindow()
             return
@@ -1061,6 +1361,23 @@ local function OnAddOnLoaded(event, addonName)
                 rule:RefreshOptions()
             end
         end
+        local function GetTrailRationsSV()
+            if HARDCORE.GetTrailRationsSV then
+                return HARDCORE.GetTrailRationsSV()
+            end
+            return {
+                hud = {
+                    unlocked = false,
+                    showLabels = true,
+                    vignette = true
+                }
+            }
+        end
+        local function RefreshTrailRationsOptions()
+            if HARDCORE.RefreshTrailRationsOptions then
+                HARDCORE.RefreshTrailRationsOptions()
+            end
+        end
 
         local panelData = {
             type = "panel",
@@ -1072,6 +1389,20 @@ local function OnAddOnLoaded(event, addonName)
         }
         lam:RegisterAddonPanel("HARDCORE_LAM", panelData)
         lam:RegisterOptionControls("HARDCORE_LAM", {{
+            type = "checkbox",
+            name = "Debug mode",
+            tooltip = "Enable /hc debug commands for testing addon behavior.",
+            width = "full",
+            getFunc = function()
+                return HARDCORE.saved and HARDCORE.saved.debugMode
+            end,
+            setFunc = function(val)
+                if HARDCORE.saved then
+                    HARDCORE.saved.debugMode = val and true or false
+                end
+            end,
+            default = false
+        }, {
             type = "checkbox",
             name = "Disable vision dim",
             tooltip = "Hide the health bar but skip the screen darkening/vignette effect.",
@@ -1099,6 +1430,57 @@ local function OnAddOnLoaded(event, addonName)
                 end
                 RefreshNoHealthBarOptions()
             end
+        }, {
+            type = "submenu",
+            name = "Trail Rations HUD",
+            tooltip = "Configure the hunger and thirst survival display.",
+            controls = {{
+                type = "checkbox",
+                name = "Unlock survival HUD",
+                tooltip = "Allow the Trail Rations HUD to be dragged. Lock it again for normal play.",
+                width = "full",
+                getFunc = function()
+                    return GetTrailRationsSV().hud.unlocked == true
+                end,
+                setFunc = function(val)
+                    GetTrailRationsSV().hud.unlocked = val and true or false
+                    RefreshTrailRationsOptions()
+                end,
+                default = false
+            }, {
+                type = "checkbox",
+                name = "Show meter labels",
+                tooltip = "Show Hunger and Thirst text below the survival icons.",
+                width = "full",
+                getFunc = function()
+                    return GetTrailRationsSV().hud.showLabels == true
+                end,
+                setFunc = function(val)
+                    GetTrailRationsSV().hud.showLabels = val and true or false
+                    RefreshTrailRationsOptions()
+                end,
+                default = true
+            }, {
+                type = "button",
+                name = "Reset HUD position",
+                tooltip = "Move the Trail Rations HUD back to its default position.",
+                width = "full",
+                func = function()
+                    if HARDCORE.ResetTrailRationsHudPosition then
+                        HARDCORE.ResetTrailRationsHudPosition()
+                    end
+                end
+            }, {
+                type = "button",
+                name = "Reset hunger/thirst meters",
+                tooltip = "Restore both survival meters to full.",
+                width = "full",
+                func = function()
+                    if HARDCORE.ResetTrailRationsMeters then
+                        HARDCORE.ResetTrailRationsMeters()
+                    end
+                end
+            }}
         }})
     end
 
