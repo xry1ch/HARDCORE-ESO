@@ -48,7 +48,8 @@ local RULE_ICONS = {
     bank = "/esoui/art/icons/servicemappins/servicepin_bank.dds",
     guildstore = "/esoui/art/tutorial/gamepad/gp_playermenu_icon_guilds.dds",
     rations = "/esoui/art/tradinghouse/gamepad/gp_tradinghouse_materials_provisioning_food.dds",
-    weariness = "/esoui/art/ava/ava_rankicon64_prefect.dds"
+    weariness = "/esoui/art/ava/ava_rankicon64_prefect.dds",
+    swim = "/esoui/art/inventory/inventory_tabicon_craftbag_fishing_up.dds"
 }
 
 local RULES = {{
@@ -159,10 +160,17 @@ local FEATS = {{
     icon = RULE_ICONS.weariness,
     difficulty = 1,
     ruleId = "RoadWeariness"
+}, {
+    title = "Mandatory Bath Time",
+    flavor = "Every ten minutes, prove you still remember which end of the sword goes above water: swim for ten seconds, or face a very damp final countdown.",
+    icon = RULE_ICONS.swim,
+    difficulty = 5,
+    ruleId = "SwimDiscipline"
 }}
 local FEAT_RULE_IDS = {
     TrailRations = true,
-    RoadWeariness = true
+    RoadWeariness = true,
+    SwimDiscipline = true
 }
 
 local FEATS_EMPTY_TEXT = "No feats are available yet."
@@ -463,6 +471,26 @@ function HARDCORE.SurrenderChallenge()
     end
 end
 
+function HARDCORE.FailChallenge(reason)
+    if not (HARDCORE.saved and HARDCORE.saved.isActive) then
+        return
+    end
+    HARDCORE.saved.hasDied = true
+    HARDCORE.SurrenderChallenge()
+    if HARDCORE.RestoreHUDSettings then
+        HARDCORE.RestoreHUDSettings()
+    end
+    if reason and reason ~= "" then
+        ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, reason)
+    end
+    if HARDCORE.ShowDeathWindow then
+        HARDCORE.ShowDeathWindow()
+    end
+    if HARDCORE.UpdateActionButton then
+        HARDCORE.UpdateActionButton()
+    end
+end
+
 local function GetMainMenuBar()
     return MAIN_MENU_KEYBOARD and MAIN_MENU_KEYBOARD.categoryBar
 end
@@ -550,10 +578,7 @@ end
 
 local function HARDCORE_OnUnitDeathStateChanged(_, unitTag, isDead)
     if isDead and HARDCORE.saved and HARDCORE.saved.isActive then
-        HARDCORE.saved.hasDied = true
-        HARDCORE.SurrenderChallenge()
-        HARDCORE.RestoreHUDSettings()
-        HARDCORE.ShowDeathWindow()
+        HARDCORE.FailChallenge("HARDCORE: Challenge failed. You died.")
     end
 end
 
@@ -1294,6 +1319,11 @@ local function RegisterSlash()
         d("/hc debug weariness rest")
         d("/hc debug weariness stop")
         d("/hc debug weariness hud")
+        d("/hc debug swim status")
+        d("/hc debug swim due")
+        d("/hc debug swim progress <seconds>")
+        d("/hc debug swim reset")
+        d("/hc debug swim hud")
     end
 
     local function RunDebugCommand(args)
@@ -1326,6 +1356,9 @@ local function RegisterSlash()
             if HARDCORE.DebugRoadWearinessStatus then
                 HARDCORE.DebugRoadWearinessStatus()
             end
+            if HARDCORE.DebugSwimDisciplineStatus then
+                HARDCORE.DebugSwimDisciplineStatus()
+            end
             return
         end
 
@@ -1335,6 +1368,15 @@ local function RegisterSlash()
                 return
             end
             HARDCORE.DebugRoadWearinessCommand(action or "help", tokens[4])
+            return
+        end
+
+        if area == "swim" then
+            if not HARDCORE.DebugSwimDisciplineCommand then
+                d("HARDCORE: Swim Discipline debug helpers are not loaded.")
+                return
+            end
+            HARDCORE.DebugSwimDisciplineCommand(action or "help", tokens[4])
             return
         end
 
@@ -1450,6 +1492,22 @@ local function OnAddOnLoaded(event, addonName)
         local function RefreshRoadWearinessOptions()
             if HARDCORE.RefreshRoadWearinessOptions then
                 HARDCORE.RefreshRoadWearinessOptions()
+            end
+        end
+        local function GetSwimDisciplineSV()
+            if HARDCORE.GetSwimDisciplineSV then
+                return HARDCORE.GetSwimDisciplineSV()
+            end
+            return {
+                hud = {
+                    unlocked = false,
+                    showLabels = true
+                }
+            }
+        end
+        local function RefreshSwimDisciplineOptions()
+            if HARDCORE.RefreshSwimDisciplineOptions then
+                HARDCORE.RefreshSwimDisciplineOptions()
             end
         end
 
@@ -1603,6 +1661,57 @@ local function OnAddOnLoaded(event, addonName)
                 func = function()
                     if HARDCORE.ResetRoadWearinessMeter then
                         HARDCORE.ResetRoadWearinessMeter()
+                    end
+                end
+            }}
+        }, {
+            type = "submenu",
+            name = "Mandatory Bath Time HUD",
+            tooltip = "Configure the periodic swim requirement display.",
+            controls = {{
+                type = "checkbox",
+                name = "Unlock swim HUD",
+                tooltip = "Allow the Swim Discipline HUD to be dragged. Lock it again for normal play.",
+                width = "full",
+                getFunc = function()
+                    return GetSwimDisciplineSV().hud.unlocked == true
+                end,
+                setFunc = function(val)
+                    GetSwimDisciplineSV().hud.unlocked = val and true or false
+                    RefreshSwimDisciplineOptions()
+                end,
+                default = false
+            }, {
+                type = "checkbox",
+                name = "Show swim label",
+                tooltip = "Show the Swim label above the requirement status.",
+                width = "full",
+                getFunc = function()
+                    return GetSwimDisciplineSV().hud.showLabels == true
+                end,
+                setFunc = function(val)
+                    GetSwimDisciplineSV().hud.showLabels = val and true or false
+                    RefreshSwimDisciplineOptions()
+                end,
+                default = true
+            }, {
+                type = "button",
+                name = "Reset HUD position",
+                tooltip = "Move the Swim Discipline HUD back beside the other feat meters.",
+                width = "full",
+                func = function()
+                    if HARDCORE.ResetSwimDisciplineHudPosition then
+                        HARDCORE.ResetSwimDisciplineHudPosition()
+                    end
+                end
+            }, {
+                type = "button",
+                name = "Reset swim timer",
+                tooltip = "Restart the swim interval and clear current swim progress.",
+                width = "full",
+                func = function()
+                    if HARDCORE.ResetSwimDisciplineTimer then
+                        HARDCORE.ResetSwimDisciplineTimer()
                     end
                 end
             }}
