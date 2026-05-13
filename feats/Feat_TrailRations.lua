@@ -162,6 +162,16 @@ local function ApplyHudPosition()
         return
     end
     local sv = GetSV()
+    local rootW = GuiRoot and GuiRoot.GetWidth and GuiRoot:GetWidth() or 0
+    local rootH = GuiRoot and GuiRoot.GetHeight and GuiRoot:GetHeight() or 0
+    local hudW = hudTLW.GetWidth and hudTLW:GetWidth() or 116
+    local hudH = hudTLW.GetHeight and hudTLW:GetHeight() or 76
+    if rootW > 0 then
+        sv.hud.x = zo_clamp(tonumber(sv.hud.x) or 360, 0, zo_max(0, rootW - hudW))
+    end
+    if rootH > 0 then
+        sv.hud.y = zo_clamp(tonumber(sv.hud.y) or 710, 0, zo_max(0, rootH - hudH))
+    end
     hudTLW:ClearAnchors()
     hudTLW:SetAnchor(TOPLEFT, GuiRoot, TOPLEFT, sv.hud.x, sv.hud.y)
 end

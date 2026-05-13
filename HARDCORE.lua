@@ -47,7 +47,8 @@ local RULE_ICONS = {
     soulgem = "/esoui/art/inventory/inventory_tabicon_soulgem_down.dds",
     bank = "/esoui/art/icons/servicemappins/servicepin_bank.dds",
     guildstore = "/esoui/art/tutorial/gamepad/gp_playermenu_icon_guilds.dds",
-    rations = "/esoui/art/tradinghouse/gamepad/gp_tradinghouse_materials_provisioning_food.dds"
+    rations = "/esoui/art/tradinghouse/gamepad/gp_tradinghouse_materials_provisioning_food.dds",
+    weariness = "/esoui/art/ava/ava_rankicon64_prefect.dds"
 }
 
 local RULES = {{
@@ -152,12 +153,37 @@ local FEATS = {{
     icon = RULE_ICONS.rations,
     difficulty = 2,
     ruleId = "TrailRations"
+}, {
+    title = "Road Weariness",
+    flavor = "Exertion, stamina loss, and combat drain your rest. Sit, sleep, or use furniture to recover before exhaustion leaves your weapons too heavy to carry.",
+    icon = RULE_ICONS.weariness,
+    difficulty = 1,
+    ruleId = "RoadWeariness"
 }}
 local FEAT_RULE_IDS = {
-    TrailRations = true
+    TrailRations = true,
+    RoadWeariness = true
 }
 
 local FEATS_EMPTY_TEXT = "No feats are available yet."
+
+local function GetSortedFeats()
+    local sorted = {}
+    for i, feat in ipairs(FEATS) do
+        sorted[i] = feat
+    end
+
+    table.sort(sorted, function(a, b)
+        local aDifficulty = tonumber(a and a.difficulty) or 1
+        local bDifficulty = tonumber(b and b.difficulty) or 1
+        if aDifficulty == bDifficulty then
+            return tostring(a and a.title or "") < tostring(b and b.title or "")
+        end
+        return aDifficulty < bDifficulty
+    end)
+
+    return sorted
+end
 
 local TIER_RULE_IDS = {
     [1] = {"HardcoreHUD", "HiddenAOEThreats", "NoCompass", "LimitedTP"},
@@ -892,7 +918,7 @@ local function CreateIntroWindow()
 
         local titleLabel = wm:CreateControl(nil, rowCtrl, CT_LABEL)
         titleLabel:SetAnchor(TOPLEFT, iconFrame, TOPRIGHT, 16, -8)
-        titleLabel:SetDimensions(478, 25)
+        titleLabel:SetDimensions(486, 25)
         titleLabel:SetFont("$(BOLD_FONT)|20|soft-shadow-thick")
         titleLabel:SetColor(COLOR.white:UnpackRGBA())
         titleLabel:SetText(challenge.title)
@@ -900,25 +926,39 @@ local function CreateIntroWindow()
 
         local flavorLabel = wm:CreateControl(nil, rowCtrl, CT_LABEL)
         flavorLabel:SetAnchor(TOPLEFT, titleLabel, BOTTOMLEFT, 0, 2)
-        flavorLabel:SetDimensions(500, 48)
+        flavorLabel:SetDimensions(510, 48)
         flavorLabel:SetFont("$(MEDIUM_FONT)|15|soft-shadow-thin")
         flavorLabel:SetColor(COLOR.gray:UnpackRGBA())
         flavorLabel:SetText(challenge.flavor)
         flavorLabel:SetWrapMode(TEXT_WRAP_MODE_TRUNCATE)
 
-        local stars = CreateStars(rowCtrl, challenge.difficulty or 1)
-        stars:SetAnchor(TOPRIGHT, rowCtrl, TOPRIGHT, -126, 24)
+        local actionArea = wm:CreateControl(nil, rowCtrl, CT_CONTROL)
+        actionArea:SetAnchor(RIGHT, rowCtrl, RIGHT, -16, 0)
+        actionArea:SetDimensions(232, 58)
 
-        local difficultyLabel = wm:CreateControl(nil, rowCtrl, CT_LABEL)
-        difficultyLabel:SetAnchor(TOP, stars, BOTTOM, -6, -3)
-        difficultyLabel:SetDimensions(124, 20)
-        difficultyLabel:SetFont("$(MEDIUM_FONT)|14|soft-shadow-thin")
+        local actionDivider = wm:CreateControl(nil, actionArea, CT_TEXTURE)
+        actionDivider:SetAnchor(CENTER, actionArea, CENTER, -3, 0)
+        actionDivider:SetDimensions(2, 42)
+        actionDivider:SetTexture("/esoui/art/miscellaneous/verticaldivider_64.dds")
+        actionDivider:SetAlpha(0.34)
+
+        local difficultyArea = wm:CreateControl(nil, actionArea, CT_CONTROL)
+        difficultyArea:SetAnchor(LEFT, actionArea, LEFT, 0, 0)
+        difficultyArea:SetDimensions(96, 58)
+
+        local stars = CreateStars(difficultyArea, challenge.difficulty or 1)
+        stars:SetAnchor(TOP, difficultyArea, TOP, 0, 3)
+
+        local difficultyLabel = wm:CreateControl(nil, difficultyArea, CT_LABEL)
+        difficultyLabel:SetAnchor(TOP, stars, BOTTOM, 0, -2)
+        difficultyLabel:SetDimensions(96, 20)
+        difficultyLabel:SetFont("$(MEDIUM_FONT)|13|soft-shadow-thin")
         difficultyLabel:SetHorizontalAlignment(TEXT_ALIGN_CENTER)
         difficultyLabel:SetColor(COLOR.dim:UnpackRGBA())
         difficultyLabel:SetText("Difficulty")
 
         local acceptButton = wm:CreateControlFromVirtual("HARDCORE_ChallengeAccept" .. idx, rowCtrl, "ZO_DefaultButton")
-        acceptButton:SetAnchor(RIGHT, rowCtrl, RIGHT, -16, 0)
+        acceptButton:SetAnchor(RIGHT, actionArea, RIGHT, 0, 0)
         acceptButton:SetDimensions(104, 34)
         local function IsAccepted()
             return challenge.ruleId and GetRulesSV().enabled[challenge.ruleId] == true
@@ -977,7 +1017,7 @@ local function CreateIntroWindow()
     emptyFeatsLabel:SetText(FEATS_EMPTY_TEXT)
     emptyFeatsLabel:SetHidden(#FEATS > 0)
 
-    for i, challenge in ipairs(FEATS) do
+    for i, challenge in ipairs(GetSortedFeats()) do
         CreateChallengeRow(challengeScrollChild, i, challenge)
     end
 
@@ -1248,6 +1288,12 @@ local function RegisterSlash()
         d("/hc debug rations set <hunger> <thirst>")
         d("/hc debug rations decay <minutes>")
         d("/hc debug rations hud")
+        d("/hc debug weariness full")
+        d("/hc debug weariness empty")
+        d("/hc debug weariness set <fatigue>")
+        d("/hc debug weariness rest")
+        d("/hc debug weariness stop")
+        d("/hc debug weariness hud")
     end
 
     local function RunDebugCommand(args)
@@ -1277,6 +1323,18 @@ local function RegisterSlash()
             if HARDCORE.DebugTrailRationsStatus then
                 HARDCORE.DebugTrailRationsStatus()
             end
+            if HARDCORE.DebugRoadWearinessStatus then
+                HARDCORE.DebugRoadWearinessStatus()
+            end
+            return
+        end
+
+        if area == "weariness" then
+            if not HARDCORE.DebugRoadWearinessCommand then
+                d("HARDCORE: Road Weariness debug helpers are not loaded.")
+                return
+            end
+            HARDCORE.DebugRoadWearinessCommand(action or "help", tokens[4])
             return
         end
 
@@ -1376,6 +1434,22 @@ local function OnAddOnLoaded(event, addonName)
         local function RefreshTrailRationsOptions()
             if HARDCORE.RefreshTrailRationsOptions then
                 HARDCORE.RefreshTrailRationsOptions()
+            end
+        end
+        local function GetRoadWearinessSV()
+            if HARDCORE.GetRoadWearinessSV then
+                return HARDCORE.GetRoadWearinessSV()
+            end
+            return {
+                hud = {
+                    unlocked = false,
+                    showLabels = true
+                }
+            }
+        end
+        local function RefreshRoadWearinessOptions()
+            if HARDCORE.RefreshRoadWearinessOptions then
+                HARDCORE.RefreshRoadWearinessOptions()
             end
         end
 
@@ -1478,6 +1552,57 @@ local function OnAddOnLoaded(event, addonName)
                 func = function()
                     if HARDCORE.ResetTrailRationsMeters then
                         HARDCORE.ResetTrailRationsMeters()
+                    end
+                end
+            }}
+        }, {
+            type = "submenu",
+            name = "Road Weariness HUD",
+            tooltip = "Configure the fatigue survival display.",
+            controls = {{
+                type = "checkbox",
+                name = "Unlock weariness HUD",
+                tooltip = "Allow the Road Weariness HUD to be dragged. Lock it again for normal play.",
+                width = "full",
+                getFunc = function()
+                    return GetRoadWearinessSV().hud.unlocked == true
+                end,
+                setFunc = function(val)
+                    GetRoadWearinessSV().hud.unlocked = val and true or false
+                    RefreshRoadWearinessOptions()
+                end,
+                default = false
+            }, {
+                type = "checkbox",
+                name = "Show meter label",
+                tooltip = "Show the Rest label below the fatigue icon.",
+                width = "full",
+                getFunc = function()
+                    return GetRoadWearinessSV().hud.showLabels == true
+                end,
+                setFunc = function(val)
+                    GetRoadWearinessSV().hud.showLabels = val and true or false
+                    RefreshRoadWearinessOptions()
+                end,
+                default = true
+            }, {
+                type = "button",
+                name = "Reset HUD position",
+                tooltip = "Move the Road Weariness HUD back beside the Trail Rations meters.",
+                width = "full",
+                func = function()
+                    if HARDCORE.ResetRoadWearinessHudPosition then
+                        HARDCORE.ResetRoadWearinessHudPosition()
+                    end
+                end
+            }, {
+                type = "button",
+                name = "Reset fatigue meter",
+                tooltip = "Restore weariness to full.",
+                width = "full",
+                func = function()
+                    if HARDCORE.ResetRoadWearinessMeter then
+                        HARDCORE.ResetRoadWearinessMeter()
                     end
                 end
             }}

@@ -3,11 +3,12 @@
 ## Version: 1.0.0
 ## APIVersion: 101049
 ## DependsOn: LibAddonMenu-2.0>=41
-## SavedVariables: HARDCORE_SV HARDCORE_Rules_SV HARDCORE_HUD_SV HARDCORE_HUD_BACKUP HARDCORE_AOE_SV HARDCORE_TRAIL_RATIONS_SV
+## SavedVariables: HARDCORE_SV HARDCORE_Rules_SV HARDCORE_HUD_SV HARDCORE_HUD_BACKUP HARDCORE_AOE_SV HARDCORE_TRAIL_RATIONS_SV HARDCORE_ROAD_WEARINESS_SV
 
 HARDCORE.lua
 RulesManager.lua
 feats/Feat_TrailRations.lua
+feats/Feat_RoadWeariness.lua
 rules/Rule_NoMail.lua
 rules/Rule_NoCrafting.lua
 rules/Rule_LimitedGear.lua
