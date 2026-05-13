@@ -15,6 +15,7 @@ HARDCORE.defaults = {
     disableLowHealthVolume = false,
     debugMode = false,
     hasSeenCongrats = false,
+    hasSeenFeatPermanentWarning = false,
     hasDied = false
 }
 
@@ -49,7 +50,8 @@ local RULE_ICONS = {
     guildstore = "/esoui/art/tutorial/gamepad/gp_playermenu_icon_guilds.dds",
     rations = "/esoui/art/tradinghouse/gamepad/gp_tradinghouse_materials_provisioning_food.dds",
     weariness = "/esoui/art/ava/ava_rankicon64_prefect.dds",
-    swim = "/esoui/art/inventory/inventory_tabicon_craftbag_fishing_up.dds"
+    swim = "/esoui/art/inventory/inventory_tabicon_craftbag_fishing_up.dds",
+    lockpick = "/esoui/art/lockpicking/lock_pick.dds"
 }
 
 local RULES = {{
@@ -162,15 +164,22 @@ local FEATS = {{
     ruleId = "RoadWeariness"
 }, {
     title = "Mandatory Bath Time",
-    flavor = "Every ten minutes, prove you still remember which end of the sword goes above water: swim for ten seconds, or face a very damp final countdown.",
+    flavor = "Every fifteen minutes, bath time comes due. Soak for ten seconds, or the final countdown begins." ,
     icon = RULE_ICONS.swim,
     difficulty = 5,
     ruleId = "SwimDiscipline"
+}, {
+    title = "Lockpick Nerves",
+    flavor = "Failed or broken lockpicks shake your nerves. Three mistakes within ten seconds break your focus and end the challenge; successful locks steady your hands.",
+    icon = RULE_ICONS.lockpick,
+    difficulty = 3,
+    ruleId = "LockpickNerves"
 }}
 local FEAT_RULE_IDS = {
     TrailRations = true,
     RoadWeariness = true,
-    SwimDiscipline = true
+    SwimDiscipline = true,
+    LockpickNerves = true
 }
 
 local FEATS_EMPTY_TEXT = "No feats are available yet."
@@ -632,6 +641,39 @@ local function HARDCORE_ShowCPBlockedDialog()
     ZO_Dialogs_ShowDialog("HARDCORE_CP_BLOCKED")
 end
 
+local function HARDCORE_ShowFeatPermanentWarningDialog(confirmCallback)
+    if not HARDCORE._featPermanentWarningDialogRegistered then
+        ZO_Dialogs_RegisterCustomDialog("HARDCORE_FEAT_PERMANENT_WARNING", {
+            title = {
+                text = "Permanent Feat"
+            },
+            mainText = {
+                text = "Feats are permanent and cannot be deactivated.\n\nDo you want to accept this feat?"
+            },
+            buttons = {
+                [1] = {
+                    text = "Accept Feat",
+                    callback = function(dialog)
+                        if dialog.data and dialog.data.confirmCallback then
+                            dialog.data.confirmCallback()
+                        end
+                    end
+                },
+                [2] = {
+                    text = SI_DIALOG_CANCEL
+                }
+            },
+            noChoiceCallback = function()
+            end
+        })
+        HARDCORE._featPermanentWarningDialogRegistered = true
+    end
+
+    ZO_Dialogs_ShowDialog("HARDCORE_FEAT_PERMANENT_WARNING", {
+        confirmCallback = confirmCallback
+    })
+end
+
 local function CreateIntroWindow()
     if HARDCORE.window then
         return
@@ -734,6 +776,7 @@ local function CreateIntroWindow()
     HARDCORE.subtitle = sub
     HARDCORE.setupControls = {}
     HARDCORE.challengeControls = {}
+    HARDCORE._featAcceptRefreshers = {}
 
     -- Difficulty preset slider
     HARDCORE._ruleRows = {}
@@ -994,6 +1037,7 @@ local function CreateIntroWindow()
             acceptButton:SetEnabled(not accepted)
             acceptButton:SetState(accepted and BSTATE_DISABLED or BSTATE_NORMAL, accepted)
         end
+        table.insert(HARDCORE._featAcceptRefreshers, RefreshAcceptButton)
         RefreshAcceptButton()
         acceptButton:SetHandler("OnMouseEnter", function()
             titleLabel:SetColor(COLOR.gold:UnpackRGBA())
@@ -1007,7 +1051,7 @@ local function CreateIntroWindow()
             titleLabel:SetColor(COLOR.white:UnpackRGBA())
             HideTip()
         end)
-        acceptButton:SetHandler("OnClicked", function()
+        local function AcceptFeat()
             if not challenge.ruleId or IsAccepted() then
                 return
             end
@@ -1020,6 +1064,19 @@ local function CreateIntroWindow()
             PlaySound(SOUNDS.QUEST_ACCEPTED)
             ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.QUEST_ACCEPTED,
                 "HARDCORE: " .. challenge.title .. " accepted.")
+        end
+        acceptButton:SetHandler("OnClicked", function()
+            if not challenge.ruleId or IsAccepted() then
+                return
+            end
+            if HARDCORE.saved and not HARDCORE.saved.hasSeenFeatPermanentWarning then
+                HARDCORE_ShowFeatPermanentWarningDialog(function()
+                    HARDCORE.saved.hasSeenFeatPermanentWarning = true
+                    AcceptFeat()
+                end)
+                return
+            end
+            AcceptFeat()
         end)
 
         rowCtrl:SetHandler("OnMouseEnter", function()
@@ -1308,6 +1365,7 @@ local function RegisterSlash()
         d("HARDCORE debug commands:")
         d("/hc debug help")
         d("/hc debug status")
+        d("/hc debug feats abandon")
         d("/hc debug rations full")
         d("/hc debug rations empty")
         d("/hc debug rations set <hunger> <thirst>")
@@ -1319,11 +1377,17 @@ local function RegisterSlash()
         d("/hc debug weariness rest")
         d("/hc debug weariness stop")
         d("/hc debug weariness hud")
-        d("/hc debug swim status")
-        d("/hc debug swim due")
-        d("/hc debug swim progress <seconds>")
-        d("/hc debug swim reset")
-        d("/hc debug swim hud")
+        d("/hc debug bath status")
+        d("/hc debug bath due")
+        d("/hc debug bath progress <seconds>")
+        d("/hc debug bath reset")
+        d("/hc debug bath hud")
+        d("/hc debug lockpick status")
+        d("/hc debug lockpick fail")
+        d("/hc debug lockpick break")
+        d("/hc debug lockpick success")
+        d("/hc debug lockpick reset")
+        d("/hc debug lockpick hud")
     end
 
     local function RunDebugCommand(args)
@@ -1359,6 +1423,39 @@ local function RegisterSlash()
             if HARDCORE.DebugSwimDisciplineStatus then
                 HARDCORE.DebugSwimDisciplineStatus()
             end
+            if HARDCORE.DebugLockpickNervesStatus then
+                HARDCORE.DebugLockpickNervesStatus()
+            end
+            return
+        end
+
+        if area == "feats" then
+            if action ~= "abandon" then
+                d("Usage: /hc debug feats abandon")
+                return
+            end
+
+            local disabledCount = 0
+            local sv = GetRulesSV()
+            for id in pairs(FEAT_RULE_IDS) do
+                if sv.enabled[id] == true then
+                    disabledCount = disabledCount + 1
+                end
+                if HARDCORE.RuleManager and HARDCORE.RuleManager.SetRuleEnabled then
+                    HARDCORE.RuleManager:SetRuleEnabled(id, false)
+                else
+                    sv.enabled[id] = false
+                end
+            end
+
+            if HARDCORE.RefreshDifficultyUI then
+                HARDCORE.RefreshDifficultyUI()
+            end
+            for _, refresh in ipairs(HARDCORE._featAcceptRefreshers or {}) do
+                refresh()
+            end
+            ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK,
+                "HARDCORE: " .. tostring(disabledCount) .. " feat(s) abandoned.")
             return
         end
 
@@ -1371,12 +1468,21 @@ local function RegisterSlash()
             return
         end
 
-        if area == "swim" then
+        if area == "swim" or area == "bath" then
             if not HARDCORE.DebugSwimDisciplineCommand then
-                d("HARDCORE: Swim Discipline debug helpers are not loaded.")
+                d("HARDCORE: Mandatory Bath Time debug helpers are not loaded.")
                 return
             end
             HARDCORE.DebugSwimDisciplineCommand(action or "help", tokens[4])
+            return
+        end
+
+        if area == "lockpick" then
+            if not HARDCORE.DebugLockpickNervesCommand then
+                d("HARDCORE: Lockpick Nerves debug helpers are not loaded.")
+                return
+            end
+            HARDCORE.DebugLockpickNervesCommand(action or "help")
             return
         end
 
@@ -1508,6 +1614,22 @@ local function OnAddOnLoaded(event, addonName)
         local function RefreshSwimDisciplineOptions()
             if HARDCORE.RefreshSwimDisciplineOptions then
                 HARDCORE.RefreshSwimDisciplineOptions()
+            end
+        end
+        local function GetLockpickNervesSV()
+            if HARDCORE.GetLockpickNervesSV then
+                return HARDCORE.GetLockpickNervesSV()
+            end
+            return {
+                hud = {
+                    unlocked = false,
+                    showLabels = true
+                }
+            }
+        end
+        local function RefreshLockpickNervesOptions()
+            if HARDCORE.RefreshLockpickNervesOptions then
+                HARDCORE.RefreshLockpickNervesOptions()
             end
         end
 
@@ -1667,11 +1789,11 @@ local function OnAddOnLoaded(event, addonName)
         }, {
             type = "submenu",
             name = "Mandatory Bath Time HUD",
-            tooltip = "Configure the periodic swim requirement display.",
+            tooltip = "Configure the periodic bath requirement display.",
             controls = {{
                 type = "checkbox",
-                name = "Unlock swim HUD",
-                tooltip = "Allow the Swim Discipline HUD to be dragged. Lock it again for normal play.",
+                name = "Unlock bath HUD",
+                tooltip = "Allow the Mandatory Bath Time HUD to be dragged. Lock it again for normal play.",
                 width = "full",
                 getFunc = function()
                     return GetSwimDisciplineSV().hud.unlocked == true
@@ -1683,8 +1805,8 @@ local function OnAddOnLoaded(event, addonName)
                 default = false
             }, {
                 type = "checkbox",
-                name = "Show swim label",
-                tooltip = "Show the Swim label above the requirement status.",
+                name = "Show bath label",
+                tooltip = "Show the Bath label above the requirement status.",
                 width = "full",
                 getFunc = function()
                     return GetSwimDisciplineSV().hud.showLabels == true
@@ -1697,7 +1819,7 @@ local function OnAddOnLoaded(event, addonName)
             }, {
                 type = "button",
                 name = "Reset HUD position",
-                tooltip = "Move the Swim Discipline HUD back beside the other feat meters.",
+                tooltip = "Move the Mandatory Bath Time HUD back beside the other feat meters.",
                 width = "full",
                 func = function()
                     if HARDCORE.ResetSwimDisciplineHudPosition then
@@ -1706,12 +1828,63 @@ local function OnAddOnLoaded(event, addonName)
                 end
             }, {
                 type = "button",
-                name = "Reset swim timer",
-                tooltip = "Restart the swim interval and clear current swim progress.",
+                name = "Reset bath timer",
+                tooltip = "Restart the bath interval and clear current bath progress.",
                 width = "full",
                 func = function()
                     if HARDCORE.ResetSwimDisciplineTimer then
                         HARDCORE.ResetSwimDisciplineTimer()
+                    end
+                end
+            }}
+        }, {
+            type = "submenu",
+            name = "Lockpick Nerves HUD",
+            tooltip = "Configure the lockpick panic display.",
+            controls = {{
+                type = "checkbox",
+                name = "Unlock lockpick HUD",
+                tooltip = "Allow the Lockpick Nerves HUD to be dragged. Lock it again for normal play.",
+                width = "full",
+                getFunc = function()
+                    return GetLockpickNervesSV().hud.unlocked == true
+                end,
+                setFunc = function(val)
+                    GetLockpickNervesSV().hud.unlocked = val and true or false
+                    RefreshLockpickNervesOptions()
+                end,
+                default = false
+            }, {
+                type = "checkbox",
+                name = "Show lockpick label",
+                tooltip = "Show the Lockpick label above the nerves status.",
+                width = "full",
+                getFunc = function()
+                    return GetLockpickNervesSV().hud.showLabels == true
+                end,
+                setFunc = function(val)
+                    GetLockpickNervesSV().hud.showLabels = val and true or false
+                    RefreshLockpickNervesOptions()
+                end,
+                default = true
+            }, {
+                type = "button",
+                name = "Reset HUD position",
+                tooltip = "Move the Lockpick Nerves HUD back beside the other feat meters.",
+                width = "full",
+                func = function()
+                    if HARDCORE.ResetLockpickNervesHudPosition then
+                        HARDCORE.ResetLockpickNervesHudPosition()
+                    end
+                end
+            }, {
+                type = "button",
+                name = "Reset lockpick nerves",
+                tooltip = "Clear current lockpick mistake strikes.",
+                width = "full",
+                func = function()
+                    if HARDCORE.ResetLockpickNervesStrikes then
+                        HARDCORE.ResetLockpickNervesStrikes()
                     end
                 end
             }}

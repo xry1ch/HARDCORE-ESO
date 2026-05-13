@@ -5,13 +5,14 @@ local NS = "HARDCORE_RoadWeariness"
 
 local TICK_MS = 1000
 local FATIGUE_DRAIN_MS = 150 * 60 * 1000
-local RESTORE_MS = 3 * 60 * 1000
+local RESTORE_MS = 60 * 1000
 local STAMINA_DRAIN_MULTIPLIER = 18
 local ACTION_DRAIN = 0.35
 local COMBAT_DRAIN = 0.20
 local WARNING_LOW = 35
 local WARNING_CRITICAL = 15
-local WEAPON_LOCK_THRESHOLD = 10
+local WEAPON_LOCK_THRESHOLD = 20
+local NPC_LOCK_THRESHOLD = 10
 
 local ICON_FATIGUE = "/esoui/art/ava/ava_rankicon64_prefect.dds"
 local METER_FRAME_TEXTURE = "/esoui/art/actionbar/abilityframe64_up.dds"
@@ -55,7 +56,8 @@ local function GetSV()
                 low = false,
                 critical = false,
                 empty = false,
-                weapons = false
+                weapons = false,
+                npcs = false
             }
         }, GetWorldName())
     end
@@ -98,6 +100,7 @@ local function ResetWarningFlags()
     sv.warnings.critical = false
     sv.warnings.empty = false
     sv.warnings.weapons = false
+    sv.warnings.npcs = false
 end
 
 local function IsRestingInteraction()
@@ -406,6 +409,44 @@ local function EnforceWeaponFatigue()
     end
 end
 
+local function IsNpcLocked()
+    return Rule.active and IsHardcoreActive() and ClampMeter(GetSV().fatigue) <= NPC_LOCK_THRESHOLD
+end
+
+local function EndNpcInteraction()
+    if EndInteraction then
+        EndInteraction(INTERACTION_CONVERSATION)
+        EndInteraction(INTERACTION_QUEST)
+    end
+    if SCENE_MANAGER then
+        if SCENE_MANAGER:GetScene("interact") then
+            SCENE_MANAGER:Hide("interact")
+        end
+        if SCENE_MANAGER:GetScene("gamepadInteract") then
+            SCENE_MANAGER:Hide("gamepadInteract")
+        end
+    end
+end
+
+local function EnforceNpcFatigue(forceNpcInteraction)
+    local sv = GetSV()
+    if not IsNpcLocked() then
+        sv.warnings.npcs = false
+        return
+    end
+
+    local interactionType = GetInteractionType and GetInteractionType() or nil
+    local isNpcInteraction = forceNpcInteraction or interactionType == INTERACTION_CONVERSATION or interactionType == INTERACTION_QUEST
+
+    if isNpcInteraction then
+        EndNpcInteraction()
+        if not sv.warnings.npcs then
+            sv.warnings.npcs = true
+            Alert("HARDCORE: Too exhausted to speak with anyone. Rest first.", SOUNDS.NEGATIVE_CLICK)
+        end
+    end
+end
+
 local function AdvanceFatigue()
     if not Rule.active then
         return
@@ -450,6 +491,25 @@ local function AdvanceFatigue()
 
     ChangeFatigue(delta)
     EnforceWeaponFatigue()
+    EnforceNpcFatigue()
+end
+
+local function OnInventoryChange(_, bagId, slotIndex)
+    if not Rule.active or bagId ~= BAG_WORN then
+        return
+    end
+    for _, equipSlot in ipairs(WEAPON_SLOTS) do
+        if slotIndex == equipSlot then
+            zo_callLater(EnforceWeaponFatigue, 50)
+            return
+        end
+    end
+end
+
+local function OnNpcInteraction()
+    if Rule.active then
+        zo_callLater(function() EnforceNpcFatigue(true) end, 1)
+    end
 end
 
 local function RegisterUpdateLoops()
@@ -537,6 +597,12 @@ local function Install()
             StopResting()
         end
     end)
+    EVENT_MANAGER:RegisterForEvent(NS .. "_CHATTER_BEGIN", EVENT_CHATTER_BEGIN, OnNpcInteraction)
+    EVENT_MANAGER:RegisterForEvent(NS .. "_CONVERSATION", EVENT_CONVERSATION_UPDATED, OnNpcInteraction)
+    EVENT_MANAGER:RegisterForEvent(NS .. "_QUEST_OFFERED", EVENT_QUEST_OFFERED, OnNpcInteraction)
+    EVENT_MANAGER:RegisterForEvent(NS .. "_QUEST_COMPLETE", EVENT_QUEST_COMPLETE_DIALOG, OnNpcInteraction)
+    EVENT_MANAGER:RegisterForEvent(NS .. "_INV", EVENT_INVENTORY_SINGLE_SLOT_UPDATE, OnInventoryChange)
+    EVENT_MANAGER:AddFilterForEvent(NS .. "_INV", EVENT_INVENTORY_SINGLE_SLOT_UPDATE, REGISTER_FILTER_BAG_ID, BAG_WORN)
     EVENT_MANAGER:RegisterForEvent(NS .. "_ACTIVATED", EVENT_PLAYER_ACTIVATED, function()
         if not Rule.active then
             return
@@ -644,6 +710,7 @@ function HARDCORE.DebugRoadWearinessCommand(action, arg1)
         sv.lastUpdateMs = GetFrameTimeMilliseconds()
         CheckWarnings()
         EnforceWeaponFatigue()
+        EnforceNpcFatigue()
         UpdateHud()
         d("Road Weariness: fatigue emptied.")
         return
@@ -658,6 +725,8 @@ function HARDCORE.DebugRoadWearinessCommand(action, arg1)
         sv.fatigue = ClampMeter(fatigue)
         sv.lastUpdateMs = GetFrameTimeMilliseconds()
         CheckWarnings()
+        EnforceWeaponFatigue()
+        EnforceNpcFatigue()
         UpdateHud()
         d("Road Weariness: fatigue=" .. tostring(zo_round(sv.fatigue)))
         return

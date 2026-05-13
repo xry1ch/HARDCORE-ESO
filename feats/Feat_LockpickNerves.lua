@@ -1,27 +1,25 @@
 local HARDCORE = HARDCORE
 
-local ID = "SwimDiscipline"
-local NS = "HARDCORE_SwimDiscipline"
+local ID = "LockpickNerves"
+local NS = "HARDCORE_LockpickNerves"
 
-local INTERVAL_MS = 15 * 60 * 1000
-local REQUIRED_SWIM_MS = 10 * 1000
-local GRACE_MS = 20 * 1000
+local WINDOW_MS = 10 * 1000
+local MAX_STRIKES = 3
 local TICK_MS = 1000
 
-local ICON_SWIM = "/esoui/art/inventory/inventory_tabicon_craftbag_fishing_up.dds"
+local ICON_LOCKPICK = "/esoui/art/lockpicking/lock_pick.dds"
 local FRAME_TEXTURE = "/esoui/art/actionbar/abilityframe64_up.dds"
 local GLOW_TEXTURE = "/esoui/art/actionbar/abilityframe64_glow.dds"
 
 local Rule = {
     id = ID,
-    title = "Mandatory Bath Time: periodic water survival check",
-    icon = ICON_SWIM,
+    title = "Lockpick Nerves: failed lockpicks build panic",
+    icon = ICON_LOCKPICK,
     defaultEnabled = false
 }
 
 Rule.active = false
 Rule._installedScenes = false
-Rule._isSwimming = false
 
 local hudTLW
 local iconControl
@@ -35,35 +33,27 @@ local pulseTimeline
 
 local function GetSV()
     HARDCORE = HARDCORE or {}
-    if not HARDCORE.swimDisciplineSaved then
-        HARDCORE.swimDisciplineSaved = ZO_SavedVars:NewCharacterIdSettings("HARDCORE_SWIM_DISCIPLINE_SV", 1, nil, {
-            intervalRemainingMs = INTERVAL_MS,
-            swimProgressMs = 0,
-            graceRemainingMs = GRACE_MS,
-            graceActive = false,
+    if not HARDCORE.lockpickNervesSaved then
+        HARDCORE.lockpickNervesSaved = ZO_SavedVars:NewCharacterIdSettings("HARDCORE_LOCKPICK_NERVES_SV", 1, nil, {
+            strikes = {},
             hud = {
-                x = 540,
+                x = 760,
                 y = 710,
                 unlocked = false,
                 showLabels = true
             },
-            warnedDue = false,
-            warnedGrace = false
+            warnedSecondStrike = false
         }, GetWorldName())
     end
 
-    local sv = HARDCORE.swimDisciplineSaved
-    sv.intervalRemainingMs = zo_clamp(tonumber(sv.intervalRemainingMs) or INTERVAL_MS, 0, INTERVAL_MS)
-    sv.swimProgressMs = zo_clamp(tonumber(sv.swimProgressMs) or 0, 0, REQUIRED_SWIM_MS)
-    sv.graceRemainingMs = zo_clamp(tonumber(sv.graceRemainingMs) or GRACE_MS, 0, GRACE_MS)
-    sv.graceActive = sv.graceActive == true
+    local sv = HARDCORE.lockpickNervesSaved
+    sv.strikes = type(sv.strikes) == "table" and sv.strikes or {}
     sv.hud = sv.hud or {}
-    if sv.hud.x == nil then sv.hud.x = 540 end
+    if sv.hud.x == nil then sv.hud.x = 760 end
     if sv.hud.y == nil then sv.hud.y = 710 end
     if sv.hud.unlocked == nil then sv.hud.unlocked = false end
     if sv.hud.showLabels == nil then sv.hud.showLabels = true end
-    sv.warnedDue = sv.warnedDue == true
-    sv.warnedGrace = sv.warnedGrace == true
+    sv.warnedSecondStrike = sv.warnedSecondStrike == true
     return sv
 end
 
@@ -71,16 +61,8 @@ local function IsHardcoreActive()
     return HARDCORE and HARDCORE.saved and HARDCORE.saved.isActive
 end
 
-local function IsDead()
-    return IsUnitDead and IsUnitDead("player")
-end
-
 local function IsOnHud()
     return SCENE_MANAGER and (SCENE_MANAGER:IsShowing("hud") or SCENE_MANAGER:IsShowing("hudui") or SCENE_MANAGER:IsShowing("gamepad_hud"))
-end
-
-local function IsSwimming()
-    return IsUnitSwimming and IsUnitSwimming("player") == true
 end
 
 local function Alert(text, sound)
@@ -94,14 +76,38 @@ local function FormatClock(ms)
     return string.format("%d:%02d", minutes, seconds)
 end
 
-local function ResetCycle(sv)
+local function PruneStrikes(sv, now)
     sv = sv or GetSV()
-    sv.intervalRemainingMs = INTERVAL_MS
-    sv.swimProgressMs = 0
-    sv.graceRemainingMs = GRACE_MS
-    sv.graceActive = false
-    sv.warnedDue = false
-    sv.warnedGrace = false
+    now = now or GetFrameTimeMilliseconds()
+
+    local kept = {}
+    for _, strikeMs in ipairs(sv.strikes or {}) do
+        strikeMs = tonumber(strikeMs)
+        if strikeMs and now - strikeMs < WINDOW_MS then
+            kept[#kept + 1] = strikeMs
+        end
+    end
+    sv.strikes = kept
+    if #kept < 2 then
+        sv.warnedSecondStrike = false
+    end
+    return kept
+end
+
+local function GetNextStrikeExpiryMs(sv, now)
+    sv = sv or GetSV()
+    now = now or GetFrameTimeMilliseconds()
+    local oldest
+    for _, strikeMs in ipairs(sv.strikes or {}) do
+        strikeMs = tonumber(strikeMs)
+        if strikeMs and (not oldest or strikeMs < oldest) then
+            oldest = strikeMs
+        end
+    end
+    if not oldest then
+        return 0
+    end
+    return zo_max(0, WINDOW_MS - (now - oldest))
 end
 
 local function ApplyHudPosition()
@@ -114,7 +120,7 @@ local function ApplyHudPosition()
     local hudW = hudTLW.GetWidth and hudTLW:GetWidth() or 214
     local hudH = hudTLW.GetHeight and hudTLW:GetHeight() or 70
     if rootW > 0 then
-        sv.hud.x = zo_clamp(tonumber(sv.hud.x) or 540, 0, zo_max(0, rootW - hudW))
+        sv.hud.x = zo_clamp(tonumber(sv.hud.x) or 760, 0, zo_max(0, rootW - hudW))
     end
     if rootH > 0 then
         sv.hud.y = zo_clamp(tonumber(sv.hud.y) or 710, 0, zo_max(0, rootH - hudH))
@@ -145,11 +151,11 @@ local function EnsureHud()
     end
 
     local wm = WINDOW_MANAGER
-    hudTLW = wm:CreateTopLevelWindow("HARDCORE_SwimDisciplineHUD")
+    hudTLW = wm:CreateTopLevelWindow("HARDCORE_LockpickNervesHUD")
     hudTLW:SetDimensions(214, 70)
     hudTLW:SetDrawTier(DT_HIGH)
     hudTLW:SetDrawLayer(DL_OVERLAY)
-    hudTLW:SetDrawLevel(9202)
+    hudTLW:SetDrawLevel(9203)
     hudTLW:SetMouseEnabled(false)
     hudTLW:SetMovable(false)
     hudTLW:SetClampedToScreen(true)
@@ -157,35 +163,35 @@ local function EnsureHud()
 
     local bg = wm:CreateControl(nil, hudTLW, CT_BACKDROP)
     bg:SetAnchorFill()
-    bg:SetCenterColor(0.015, 0.025, 0.032, 0.84)
+    bg:SetCenterColor(0.030, 0.022, 0.018, 0.84)
     bg:SetEdgeTexture("/esoui/art/chatwindow/chat_bg_edge.dds", 32, 4, 4)
-    bg:SetEdgeColor(0.15, 0.55, 0.72, 0.72)
+    bg:SetEdgeColor(0.72, 0.34, 0.14, 0.72)
 
     local glow = wm:CreateControl(nil, hudTLW, CT_TEXTURE)
     glow:SetAnchor(LEFT, hudTLW, LEFT, 5, 0)
     glow:SetDimensions(58, 58)
     glow:SetTexture(GLOW_TEXTURE)
-    glow:SetColor(0.20, 0.72, 0.92, 1)
+    glow:SetColor(0.95, 0.42, 0.12, 1)
     glow:SetAlpha(0.22)
     glow:SetBlendMode(TEX_BLEND_ADD)
 
     iconControl = wm:CreateControl(nil, hudTLW, CT_TEXTURE)
     iconControl:SetAnchor(LEFT, hudTLW, LEFT, 8, 0)
     iconControl:SetDimensions(46, 46)
-    iconControl:SetTexture(ICON_SWIM)
-    iconControl:SetColor(0.80, 0.96, 1, 1)
+    iconControl:SetTexture(ICON_LOCKPICK)
+    iconControl:SetColor(1, 0.86, 0.66, 1)
 
     local frame = wm:CreateControl(nil, hudTLW, CT_TEXTURE)
     frame:SetAnchor(CENTER, iconControl, CENTER, 0, 0)
     frame:SetDimensions(56, 56)
     frame:SetTexture(FRAME_TEXTURE)
-    frame:SetColor(0.82, 0.92, 1, 0.92)
+    frame:SetColor(1, 0.80, 0.46, 0.92)
 
     pulseControl = wm:CreateControl(nil, hudTLW, CT_TEXTURE)
     pulseControl:SetAnchor(CENTER, iconControl, CENTER, 0, 0)
     pulseControl:SetDimensions(62, 62)
     pulseControl:SetTexture("/esoui/art/quest/texthighlight.dds")
-    pulseControl:SetColor(1, 0.15, 0.10, 1)
+    pulseControl:SetColor(1, 0.20, 0.08, 1)
     pulseControl:SetAlpha(0)
     pulseControl:SetBlendMode(TEX_BLEND_ADD)
 
@@ -193,8 +199,8 @@ local function EnsureHud()
     titleLabel:SetAnchor(TOPLEFT, hudTLW, TOPLEFT, 65, 7)
     titleLabel:SetDimensions(140, 16)
     titleLabel:SetFont("$(BOLD_FONT)|13|soft-shadow-thin")
-    titleLabel:SetColor(0.82, 0.96, 1, 0.98)
-    titleLabel:SetText("BATH")
+    titleLabel:SetColor(1, 0.86, 0.62, 0.98)
+    titleLabel:SetText("LOCKPICK")
 
     timeLabel = wm:CreateControl(nil, hudTLW, CT_LABEL)
     timeLabel:SetAnchor(TOPRIGHT, hudTLW, TOPRIGHT, -9, 7)
@@ -207,18 +213,18 @@ local function EnsureHud()
     statusLabel:SetAnchor(TOPLEFT, titleLabel, BOTTOMLEFT, 0, 3)
     statusLabel:SetDimensions(140, 18)
     statusLabel:SetFont("$(MEDIUM_FONT)|12|soft-shadow-thin")
-    statusLabel:SetColor(0.78, 0.86, 0.88, 0.96)
+    statusLabel:SetColor(0.88, 0.82, 0.74, 0.96)
 
     progressBg = wm:CreateControl(nil, hudTLW, CT_BACKDROP)
     progressBg:SetAnchor(TOPLEFT, statusLabel, BOTTOMLEFT, 0, 5)
     progressBg:SetDimensions(134, 8)
     progressBg:SetCenterColor(0, 0, 0, 0.55)
-    progressBg:SetEdgeColor(0.12, 0.32, 0.42, 0.72)
+    progressBg:SetEdgeColor(0.38, 0.18, 0.10, 0.72)
 
     progressFill = wm:CreateControl(nil, progressBg, CT_BACKDROP)
     progressFill:SetAnchor(LEFT, progressBg, LEFT, 0, 0)
     progressFill:SetDimensions(1, 8)
-    progressFill:SetCenterColor(0.16, 0.72, 0.95, 0.92)
+    progressFill:SetCenterColor(0.95, 0.36, 0.10, 0.92)
     progressFill:SetEdgeColor(0, 0, 0, 0)
 
     hudTLW:SetHandler("OnMoveStop", function()
@@ -243,162 +249,139 @@ end
 local function UpdateHud()
     EnsureHud()
     local sv = GetSV()
-    local swimming = Rule._isSwimming or IsSwimming()
-    local progressPct = zo_clamp(sv.swimProgressMs / REQUIRED_SWIM_MS, 0, 1)
-    local fillWidth = zo_max(1, zo_round(134 * progressPct))
+    local now = GetFrameTimeMilliseconds()
+    local strikes = PruneStrikes(sv, now)
+    local count = #strikes
+    local pct = zo_clamp(count / MAX_STRIKES, 0, 1)
 
-    progressFill:SetDimensions(fillWidth, 8)
+    progressFill:SetDimensions(zo_max(1, zo_round(134 * pct)), 8)
     titleLabel:SetHidden(not (sv.hud.showLabels == true))
+    statusLabel:SetText(tostring(count) .. "/" .. tostring(MAX_STRIKES) .. " nerves")
 
-    if sv.graceActive then
-        timeLabel:SetText(FormatClock(sv.graceRemainingMs))
-        timeLabel:SetColor(1, 0.26, 0.18, 1)
-        statusLabel:SetText("Bathe now " .. tostring(zo_floor(sv.swimProgressMs / 1000)) .. "/10s")
-        statusLabel:SetColor(1, 0.58, 0.46, 1)
-        progressFill:SetCenterColor(1, 0.20, 0.12, 0.95)
-        iconControl:SetColor(1, 0.70, 0.62, 1)
-        pulseControl:SetHidden(false)
+    if count <= 0 then
+        timeLabel:SetText("Calm")
+        timeLabel:SetColor(0.88, 1, 0.72, 1)
+        statusLabel:SetColor(0.88, 0.82, 0.74, 0.96)
+        progressFill:SetCenterColor(0.95, 0.66, 0.18, 0.80)
+        iconControl:SetColor(1, 0.86, 0.66, 1)
+    else
+        timeLabel:SetText(FormatClock(GetNextStrikeExpiryMs(sv, now)))
+        if count >= MAX_STRIKES - 1 then
+            timeLabel:SetColor(1, 0.28, 0.16, 1)
+            statusLabel:SetColor(1, 0.58, 0.42, 1)
+            progressFill:SetCenterColor(1, 0.18, 0.08, 0.95)
+            iconControl:SetColor(1, 0.62, 0.44, 1)
+        else
+            timeLabel:SetColor(1, 0.92, 0.64, 1)
+            statusLabel:SetColor(0.96, 0.78, 0.58, 1)
+            progressFill:SetCenterColor(0.95, 0.42, 0.12, 0.92)
+            iconControl:SetColor(1, 0.78, 0.56, 1)
+        end
+    end
+
+    local critical = count >= MAX_STRIKES - 1
+    pulseControl:SetHidden(not critical)
+    if critical then
         if pulseTimeline and not pulseTimeline:IsPlaying() then
             pulseTimeline:PlayFromStart()
         end
-    else
-        timeLabel:SetText(FormatClock(sv.intervalRemainingMs))
-        timeLabel:SetColor(1, 0.96, 0.80, 1)
-        if swimming then
-            statusLabel:SetText("Bathing " .. tostring(zo_floor(sv.swimProgressMs / 1000)) .. "/10s")
-        else
-            statusLabel:SetText("Bath due")
-        end
-        statusLabel:SetColor(0.78, 0.86, 0.88, 0.96)
-        progressFill:SetCenterColor(0.16, 0.72, 0.95, 0.92)
-        iconControl:SetColor(0.80, 0.96, 1, 1)
-        if pulseTimeline and pulseTimeline:IsPlaying() then
-            pulseTimeline:Stop()
-        end
+    elseif pulseTimeline and pulseTimeline:IsPlaying() then
+        pulseTimeline:Stop()
         pulseControl:SetAlpha(0)
-        pulseControl:SetHidden(true)
     end
 
     UpdateLockState()
     UpdateVisibility()
 end
 
-local function CompleteSwimRequirement(sv)
-    ResetCycle(sv)
-    Alert("HARDCORE: Bath requirement complete.", SOUNDS.QUEST_ACCEPTED)
+local function ResetStrikes()
+    local sv = GetSV()
+    sv.strikes = {}
+    sv.warnedSecondStrike = false
     UpdateHud()
 end
 
-local function StartGrace(sv)
-    if sv.graceActive then
-        return
-    end
-    sv.graceActive = true
-    sv.graceRemainingMs = GRACE_MS
-    sv.warnedGrace = true
-    Alert("HARDCORE: Bath time. Challenge fails in 20 seconds.", SOUNDS.DUEL_START)
-end
-
-local function FailForMissedSwim()
+local function FailForNerves()
     if HARDCORE and HARDCORE.FailChallenge then
-        HARDCORE.FailChallenge("HARDCORE: Challenge failed. You skipped bath time.")
+        HARDCORE.FailChallenge("HARDCORE: Challenge failed. Your lockpick nerves broke.")
     end
 end
 
-local function AdvanceSwimDiscipline()
-    if not Rule.active then
+local function AddStrike(label, force)
+    if not (force or (Rule.active and IsHardcoreActive())) then
         return
     end
-
     local sv = GetSV()
     local now = GetFrameTimeMilliseconds()
-    if not sv.lastUpdateMs or sv.lastUpdateMs <= 0 then
-        sv.lastUpdateMs = now
-        UpdateHud()
+    local strikes = PruneStrikes(sv, now)
+    strikes[#strikes + 1] = now
+    sv.strikes = strikes
+
+    if #strikes >= MAX_STRIKES then
+        Alert("HARDCORE: Lockpick Nerves broke.", SOUNDS.LOCKPICKING_BREAK or SOUNDS.NEGATIVE_CLICK)
+        FailForNerves()
         return
     end
 
-    local elapsed = now - sv.lastUpdateMs
-    if elapsed <= 0 then
-        return
-    end
-    sv.lastUpdateMs = now
-
-    if not IsHardcoreActive() or IsDead() then
-        UpdateHud()
-        return
-    end
-
-    Rule._isSwimming = IsSwimming()
-    if Rule._isSwimming then
-        sv.swimProgressMs = zo_clamp(sv.swimProgressMs + elapsed, 0, REQUIRED_SWIM_MS)
-        if sv.swimProgressMs >= REQUIRED_SWIM_MS then
-            CompleteSwimRequirement(sv)
-            return
-        end
-    end
-
-    if sv.graceActive then
-        sv.graceRemainingMs = zo_clamp(sv.graceRemainingMs - elapsed, 0, GRACE_MS)
-        if sv.graceRemainingMs <= 0 then
-            FailForMissedSwim()
-            return
-        end
+    if #strikes >= MAX_STRIKES - 1 and not sv.warnedSecondStrike then
+        sv.warnedSecondStrike = true
+        Alert("HARDCORE: One more lockpick mistake will end the challenge.", SOUNDS.DUEL_START)
     else
-        sv.intervalRemainingMs = zo_clamp(sv.intervalRemainingMs - elapsed, 0, INTERVAL_MS)
-        if sv.intervalRemainingMs <= 0 then
-            StartGrace(sv)
-        elseif sv.intervalRemainingMs <= 60 * 1000 and not sv.warnedDue then
-            sv.warnedDue = true
-            Alert("HARDCORE: Bath time is due in one minute.", SOUNDS.QUEST_OBJECTIVE_STARTED)
-        end
+        Alert("HARDCORE: " .. label .. " shook your nerves.", SOUNDS.LOCKPICKING_FAILED or SOUNDS.NEGATIVE_CLICK)
     end
+    UpdateHud()
+end
 
+local function RemoveStrikeOnSuccess(force)
+    if not (force or (Rule.active and IsHardcoreActive())) then
+        return
+    end
+    local sv = GetSV()
+    local strikes = PruneStrikes(sv, GetFrameTimeMilliseconds())
+    if #strikes > 0 then
+        table.remove(strikes, 1)
+        sv.strikes = strikes
+        if #strikes < MAX_STRIKES - 1 then
+            sv.warnedSecondStrike = false
+        end
+        Alert("HARDCORE: Steady hands. Lockpick nerves eased.", SOUNDS.LOCKPICKING_UNLOCKED or SOUNDS.QUEST_ACCEPTED)
+    end
     UpdateHud()
 end
 
 local function RegisterUpdateLoop()
     EVENT_MANAGER:UnregisterForUpdate(NS .. "_TICK")
     if Rule.active then
-        EVENT_MANAGER:RegisterForUpdate(NS .. "_TICK", TICK_MS, AdvanceSwimDiscipline)
+        EVENT_MANAGER:RegisterForUpdate(NS .. "_TICK", TICK_MS, UpdateHud)
     end
-end
-
-local function OnSwimmingStateChanged(isSwimming)
-    if not Rule.active then
-        return
-    end
-    Rule._isSwimming = isSwimming == true or IsSwimming()
-    UpdateHud()
 end
 
 local function RegisterEvents()
-    EVENT_MANAGER:UnregisterForEvent(NS .. "_SWIM", EVENT_PLAYER_SWIMMING)
-    EVENT_MANAGER:UnregisterForEvent(NS .. "_NOSWIM", EVENT_PLAYER_NOT_SWIMMING)
+    EVENT_MANAGER:UnregisterForEvent(NS .. "_FAILED", EVENT_LOCKPICK_FAILED)
+    EVENT_MANAGER:UnregisterForEvent(NS .. "_BROKE", EVENT_LOCKPICK_BROKE)
+    EVENT_MANAGER:UnregisterForEvent(NS .. "_SUCCESS", EVENT_LOCKPICK_SUCCESS)
     EVENT_MANAGER:UnregisterForEvent(NS .. "_ACTIVATED", EVENT_PLAYER_ACTIVATED)
     EVENT_MANAGER:UnregisterForEvent(NS .. "_RESIZE", EVENT_SCREEN_RESIZED)
 
-    EVENT_MANAGER:RegisterForEvent(NS .. "_SWIM", EVENT_PLAYER_SWIMMING, function()
-        OnSwimmingStateChanged(true)
+    EVENT_MANAGER:RegisterForEvent(NS .. "_FAILED", EVENT_LOCKPICK_FAILED, function()
+        AddStrike("A failed lockpick")
     end)
-    EVENT_MANAGER:RegisterForEvent(NS .. "_NOSWIM", EVENT_PLAYER_NOT_SWIMMING, function()
-        OnSwimmingStateChanged(false)
+    EVENT_MANAGER:RegisterForEvent(NS .. "_BROKE", EVENT_LOCKPICK_BROKE, function()
+        AddStrike("A broken lockpick")
     end)
+    EVENT_MANAGER:RegisterForEvent(NS .. "_SUCCESS", EVENT_LOCKPICK_SUCCESS, RemoveStrikeOnSuccess)
     EVENT_MANAGER:RegisterForEvent(NS .. "_ACTIVATED", EVENT_PLAYER_ACTIVATED, function()
-        if not Rule.active then
-            return
+        if Rule.active then
+            UpdateHud()
         end
-        local sv = GetSV()
-        sv.lastUpdateMs = GetFrameTimeMilliseconds()
-        Rule._isSwimming = IsSwimming()
-        UpdateHud()
     end)
     EVENT_MANAGER:RegisterForEvent(NS .. "_RESIZE", EVENT_SCREEN_RESIZED, ApplyHudPosition)
 end
 
 local function UnregisterEvents()
-    EVENT_MANAGER:UnregisterForEvent(NS .. "_SWIM", EVENT_PLAYER_SWIMMING)
-    EVENT_MANAGER:UnregisterForEvent(NS .. "_NOSWIM", EVENT_PLAYER_NOT_SWIMMING)
+    EVENT_MANAGER:UnregisterForEvent(NS .. "_FAILED", EVENT_LOCKPICK_FAILED)
+    EVENT_MANAGER:UnregisterForEvent(NS .. "_BROKE", EVENT_LOCKPICK_BROKE)
+    EVENT_MANAGER:UnregisterForEvent(NS .. "_SUCCESS", EVENT_LOCKPICK_SUCCESS)
     EVENT_MANAGER:UnregisterForEvent(NS .. "_ACTIVATED", EVENT_PLAYER_ACTIVATED)
     EVENT_MANAGER:UnregisterForEvent(NS .. "_RESIZE", EVENT_SCREEN_RESIZED)
 end
@@ -433,9 +416,6 @@ end
 
 function Rule:OnEnable()
     self.active = true
-    local sv = GetSV()
-    sv.lastUpdateMs = GetFrameTimeMilliseconds()
-    self._isSwimming = IsSwimming()
     EnsureHud()
     HookScenes()
     RegisterEvents()
@@ -464,101 +444,87 @@ function Rule:RefreshOptions()
     UpdateHud()
 end
 
-function Rule:ResetTimer()
-    local sv = GetSV()
-    ResetCycle(sv)
-    sv.lastUpdateMs = GetFrameTimeMilliseconds()
-    UpdateHud()
+function Rule:ResetStrikes()
+    ResetStrikes()
 end
 
 function Rule:ResetHudPosition()
     local sv = GetSV()
-    sv.hud.x = 540
+    sv.hud.x = 760
     sv.hud.y = 710
     ApplyHudPosition()
     UpdateHud()
 end
 
-function HARDCORE.GetSwimDisciplineSV()
+function HARDCORE.GetLockpickNervesSV()
     return GetSV()
 end
 
-function HARDCORE.RefreshSwimDisciplineOptions()
+function HARDCORE.RefreshLockpickNervesOptions()
     if Rule.RefreshOptions then
         Rule:RefreshOptions()
     end
 end
 
-function HARDCORE.ResetSwimDisciplineTimer()
-    Rule:ResetTimer()
+function HARDCORE.ResetLockpickNervesStrikes()
+    Rule:ResetStrikes()
 end
 
-function HARDCORE.ResetSwimDisciplineHudPosition()
+function HARDCORE.ResetLockpickNervesHudPosition()
     Rule:ResetHudPosition()
 end
 
-function HARDCORE.DebugSwimDisciplineStatus()
+function HARDCORE.DebugLockpickNervesStatus()
     local sv = GetSV()
-    d("Mandatory Bath Time active=" .. tostring(Rule.active) ..
-        " bathing=" .. tostring(Rule._isSwimming or IsSwimming()) ..
-        " interval=" .. FormatClock(sv.intervalRemainingMs) ..
-        " progress=" .. tostring(zo_floor(sv.swimProgressMs / 1000)) .. "/10s" ..
-        " grace=" .. tostring(sv.graceActive) ..
-        " graceRemaining=" .. FormatClock(sv.graceRemainingMs) ..
+    local now = GetFrameTimeMilliseconds()
+    local strikes = PruneStrikes(sv, now)
+    d("Lockpick Nerves active=" .. tostring(Rule.active) ..
+        " strikes=" .. tostring(#strikes) .. "/" .. tostring(MAX_STRIKES) ..
+        " nextExpiry=" .. FormatClock(GetNextStrikeExpiryMs(sv, now)) ..
         " hud=(" .. tostring(sv.hud.x) .. "," .. tostring(sv.hud.y) .. ")" ..
         " unlocked=" .. tostring(sv.hud.unlocked))
 end
 
-function HARDCORE.DebugSwimDisciplineCommand(action, arg1)
+function HARDCORE.DebugLockpickNervesCommand(action)
     action = action or "help"
-    local sv = GetSV()
 
     if action == "help" then
-        d("Mandatory Bath Time debug:")
-        d("/hc debug bath status")
-        d("/hc debug bath due")
-        d("/hc debug bath progress <seconds>")
-        d("/hc debug bath reset")
-        d("/hc debug bath hud")
+        d("Lockpick Nerves debug:")
+        d("/hc debug lockpick status")
+        d("/hc debug lockpick fail")
+        d("/hc debug lockpick break")
+        d("/hc debug lockpick success")
+        d("/hc debug lockpick reset")
+        d("/hc debug lockpick hud")
         return
     end
 
     if action == "status" then
-        HARDCORE.DebugSwimDisciplineStatus()
+        HARDCORE.DebugLockpickNervesStatus()
         return
     end
 
-    if action == "due" then
-        sv.intervalRemainingMs = 0
-        sv.graceActive = true
-        sv.graceRemainingMs = GRACE_MS
-        sv.lastUpdateMs = GetFrameTimeMilliseconds()
-        Alert("HARDCORE: Bath grace countdown started.", SOUNDS.DUEL_START)
-        UpdateHud()
-        HARDCORE.DebugSwimDisciplineStatus()
+    if action == "fail" then
+        AddStrike("A failed lockpick", true)
+        HARDCORE.DebugLockpickNervesStatus()
         return
     end
 
-    if action == "progress" then
-        local seconds = tonumber(arg1)
-        if not seconds then
-            d("Usage: /hc debug bath progress <seconds>")
-            return
-        end
-        sv.swimProgressMs = zo_clamp(seconds * 1000, 0, REQUIRED_SWIM_MS)
-        sv.lastUpdateMs = GetFrameTimeMilliseconds()
-        if sv.swimProgressMs >= REQUIRED_SWIM_MS then
-            CompleteSwimRequirement(sv)
-        else
-            UpdateHud()
-        end
-        HARDCORE.DebugSwimDisciplineStatus()
+    if action == "break" then
+        AddStrike("A broken lockpick", true)
+        HARDCORE.DebugLockpickNervesStatus()
+        return
+    end
+
+    if action == "success" then
+        RemoveStrikeOnSuccess(true)
+        HARDCORE.DebugLockpickNervesStatus()
         return
     end
 
     if action == "reset" then
-        Rule:ResetTimer()
-        d("Mandatory Bath Time: timer and bath progress reset.")
+        Rule:ResetStrikes()
+        d("Lockpick Nerves: strikes reset.")
         return
     end
 
@@ -568,11 +534,11 @@ function HARDCORE.DebugSwimDisciplineCommand(action, arg1)
         if hudTLW then
             hudTLW:SetHidden(false)
         end
-        d("Mandatory Bath Time: HUD forced visible until the next scene/update refresh.")
+        d("Lockpick Nerves: HUD forced visible until the next scene/update refresh.")
         return
     end
 
-    d("Unknown Mandatory Bath Time debug action: " .. tostring(action))
+    d("Unknown Lockpick Nerves debug action: " .. tostring(action))
 end
 
 HARDCORE.RuleManager:RegisterRule(Rule)

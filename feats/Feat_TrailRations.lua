@@ -488,28 +488,6 @@ local function TryRefillFromCapturedUseLater()
     zo_callLater(TryRefillFromCapturedUse, 1000)
 end
 
-local function TryRefillFromActionSlot(actionSlotIndex)
-    if not Rule.active then
-        return
-    end
-    if not actionSlotIndex then
-        return
-    end
-
-    local link = nil
-    if GetSlotItemLink then
-        link = GetSlotItemLink(actionSlotIndex, HOTBAR_CATEGORY_QUICKSLOT_WHEEL)
-        if not link or link == "" then
-            link = GetSlotItemLink(actionSlotIndex)
-        end
-    end
-
-    if link and link ~= "" and GetItemLinkItemType then
-        local itemType = GetItemLinkItemType(link)
-        Refill(itemType)
-    end
-end
-
 local function AdvanceMeters()
     if not Rule.active then
         return
@@ -586,9 +564,6 @@ local function Install()
             end
         end)
     end
-    EVENT_MANAGER:RegisterForEvent(NS .. "_QUICKSLOT", EVENT_ACTION_SLOT_ABILITY_USED, function(_, actionSlotIndex)
-        TryRefillFromActionSlot(actionSlotIndex)
-    end)
     EVENT_MANAGER:RegisterForEvent(NS .. "_INV", EVENT_INVENTORY_SINGLE_SLOT_UPDATE, HandleInventorySlotUpdate)
     EVENT_MANAGER:AddFilterForEvent(NS .. "_INV", EVENT_INVENTORY_SINGLE_SLOT_UPDATE, REGISTER_FILTER_BAG_ID, BAG_BACKPACK)
     EVENT_MANAGER:RegisterForEvent(NS .. "_EFFECT", EVENT_EFFECT_CHANGED, function(_, changeType, _effectSlot, _effectName, unitTag)
