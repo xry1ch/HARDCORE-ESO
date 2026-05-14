@@ -1,9 +1,9 @@
 ## Title: HARDCORE
 ## Author: |cFFFF00Wrynch|r
-## Version: 1.0.0
+## Version: 1.2.0
 ## APIVersion: 101049
 ## DependsOn: LibAddonMenu-2.0>=41
-## SavedVariables: HARDCORE_SV HARDCORE_Rules_SV HARDCORE_HUD_SV HARDCORE_HUD_BACKUP HARDCORE_AOE_SV HARDCORE_TRAIL_RATIONS_SV HARDCORE_ROAD_WEARINESS_SV HARDCORE_SWIM_DISCIPLINE_SV HARDCORE_LOCKPICK_NERVES_SV
+## SavedVariables: HARDCORE_SV HARDCORE_Rules_SV HARDCORE_HUD_SV HARDCORE_HUD_BACKUP HARDCORE_AOE_SV HARDCORE_TRAIL_RATIONS_SV HARDCORE_ROAD_WEARINESS_SV HARDCORE_SWIM_DISCIPLINE_SV HARDCORE_LOCKPICK_NERVES_SV HARDCORE_NO_SWIMMING_SV HARDCORE_NEED_OF_BLOOD_SV
 
 HARDCORE.lua
 RulesManager.lua
@@ -11,6 +11,12 @@ feats/Feat_TrailRations.lua
 feats/Feat_RoadWeariness.lua
 feats/Feat_SwimDiscipline.lua
 feats/Feat_LockpickNerves.lua
+feats/Feat_Barbarian.lua
+feats/Feat_HandsFree.lua
+feats/Feat_NoSwimming.lua
+feats/Feat_Nudist.lua
+feats/Feat_NeedOfBlood.lua
+feats/Feat_NoPotions.lua
 rules/Rule_NoMail.lua
 rules/Rule_NoCrafting.lua
 rules/Rule_LimitedGear.lua

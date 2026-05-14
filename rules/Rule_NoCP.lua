@@ -14,11 +14,8 @@ Rule._lastAlertMs = 0
 
 local BLOCKED_SCENES = {
     ["champion"] = true,
-    ["champion_perks"] = true,
-    ["championperks"] = true,
-    ["championperkskeyboard"] = true,
-    ["championperksgamepad"] = true,
-    ["gamepad_champion_perks_root"] = true
+    ["championPerks"] = true,
+    ["gamepad_championPerks_root"] = true
 }
 
 local function ShouldThrottle()
@@ -35,37 +32,8 @@ local function Announce()
     ZO_Alert(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, "HARDCORE: Champion Points are disabled.")
 end
 
-local function IsBlockedSceneName(sceneName)
-    if not sceneName then return false end
-    sceneName = string.lower(tostring(sceneName))
-    if BLOCKED_SCENES[sceneName] then
-        return true
-    end
-    return string.find(sceneName, "champion", 1, true) ~= nil
-end
-
-local function GetSceneName(arg)
-    if type(arg) == "string" then
-        return arg
-    end
-    if type(arg) == "table" and arg.GetName then
-        return arg:GetName()
-    end
-    return nil
-end
-
 local function InstallHooks()
     if Rule._hooksInstalled then return end
-
-    ZO_PreHook(SCENE_MANAGER, "Show", function(_, arg)
-        if not Rule.active then return false end
-        local sceneName = GetSceneName(arg)
-        if IsBlockedSceneName(sceneName) then
-            Announce()
-            return true
-        end
-        return false
-    end)
 
     local function AttachCloseOnShow(sceneName)
         local scene = SCENE_MANAGER and SCENE_MANAGER:GetScene(sceneName)
@@ -81,8 +49,6 @@ local function InstallHooks()
     for name in pairs(BLOCKED_SCENES) do
         AttachCloseOnShow(name)
     end
-    AttachCloseOnShow("champion")
-
     if ToggleChampionPerksScene then
         ZO_PreHook("ToggleChampionPerksScene", function()
             if Rule.active then Announce() return true end

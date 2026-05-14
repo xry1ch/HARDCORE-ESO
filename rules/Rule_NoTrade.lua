@@ -109,21 +109,6 @@ local function InstallHooks()
         end)
     end
 
-    ZO_PreHook(SCENE_MANAGER, "Show", function(_, arg)
-        if not Rule.active then return false end
-        local sceneName
-        if type(arg) == "string" then
-            sceneName = arg
-        elseif type(arg) == "table" and arg.GetName then
-            sceneName = arg:GetName()
-        end
-        if sceneName == "trade" then
-            Announce()
-            SafeHideTrade()
-            return true
-        end
-    end)
-
     Rule._hooksInstalled = true
 end
 

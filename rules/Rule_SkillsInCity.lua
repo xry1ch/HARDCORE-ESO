@@ -20,16 +20,6 @@ local function IsPlayerInCity()
     return false
 end
 
-local function GetSceneName(arg)
-    if type(arg) == "string" then
-        return arg
-    end
-    if type(arg) == "table" and arg.GetName then
-        return arg:GetName()
-    end
-    return nil
-end
-
 local function Announce()
     ZO_Alert(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, "HARDCORE: Skills can only be managed in a city/town!")
 end
@@ -39,16 +29,15 @@ local function Install()
         return
     end
 
-    ZO_PreHook(SCENE_MANAGER, "Show", function(_, arg)
-        if not Rule.active then
-            return false
-        end
-        local sceneName = GetSceneName(arg)
-        if sceneName == "skills" and not IsPlayerInCity() then
-            Announce()
-            return true
-        end
-    end)
+    local scene = SCENE_MANAGER and SCENE_MANAGER:GetScene("skills")
+    if scene then
+        scene:RegisterCallback("StateChange", function(_, newState)
+            if Rule.active and newState == SCENE_SHOWING and not IsPlayerInCity() then
+                Announce()
+                SCENE_MANAGER:HideCurrentScene()
+            end
+        end)
+    end
 
     Rule._hooksInstalled = true
 end

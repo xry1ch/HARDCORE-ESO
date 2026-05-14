@@ -51,7 +51,13 @@ local RULE_ICONS = {
     rations = "/esoui/art/tradinghouse/gamepad/gp_tradinghouse_materials_provisioning_food.dds",
     weariness = "/esoui/art/ava/ava_rankicon64_prefect.dds",
     swim = "/esoui/art/inventory/inventory_tabicon_craftbag_fishing_up.dds",
-    lockpick = "/esoui/art/lockpicking/lock_pick.dds"
+    lockpick = "/esoui/art/lockpicking/lock_pick.dds",
+    barbarian = "/esoui/art/inventory/inventory_tabicon_2handed_up.dds",
+    handsfree = "/esoui/art/inventory/inventory_tabicon_weapons_up.dds",
+    noswimming = "/esoui/art/inventory/inventory_tabicon_craftbag_fishing_up.dds",
+    nudist = "/esoui/art/inventory/inventory_tabicon_armor_up.dds",
+    blood = "/esoui/art/lfg/lfg_dps_up_64.dds",
+    potions = "/esoui/art/tradinghouse/tradinghouse_potions_potionsolvent_up.dds"
 }
 
 local RULES = {{
@@ -174,12 +180,54 @@ local FEATS = {{
     icon = RULE_ICONS.lockpick,
     difficulty = 3,
     ruleId = "LockpickNerves"
+}, {
+    title = "Barbarian",
+    flavor = "Fight only with two-handed melee weapons. Wear no helm or chest armor, and keep every other armor slot heavy.",
+    icon = RULE_ICONS.barbarian,
+    difficulty = 3,
+    ruleId = "Barbarian"
+}, {
+    title = "Hands Free",
+    flavor = "No weapons may be equipped. Fight, survive, and travel with empty hands.",
+    icon = RULE_ICONS.handsfree,
+    difficulty = 4,
+    ruleId = "HandsFree"
+}, {
+    title = "No Swimming",
+    flavor = "Entering water starts a short danger timer. Stay in too long and the challenge ends.",
+    icon = RULE_ICONS.noswimming,
+    difficulty = 2,
+    ruleId = "NoSwimming"
+}, {
+    title = "Nudist",
+    flavor = "Armor cannot be worn. Weapons and jewelry are still allowed.",
+    icon = RULE_ICONS.nudist,
+    difficulty = 3,
+    ruleId = "Nudist"
+}, {
+    title = "Need of Blood",
+    flavor = "Every ten minutes the blood demand begins. Only then does a kill count, and you have twenty seconds before the run ends.",
+    icon = RULE_ICONS.blood,
+    difficulty = 4,
+    ruleId = "NeedOfBlood"
+}, {
+    title = "No Potions",
+    flavor = "Potion use is forbidden. Consuming a potion ends the challenge.",
+    icon = RULE_ICONS.potions,
+    difficulty = 2,
+    ruleId = "NoPotions"
 }}
 local FEAT_RULE_IDS = {
     TrailRations = true,
     RoadWeariness = true,
     SwimDiscipline = true,
-    LockpickNerves = true
+    LockpickNerves = true,
+    Barbarian = true,
+    HandsFree = true,
+    NoSwimming = true,
+    Nudist = true,
+    NeedOfBlood = true,
+    NoPotions = true
 }
 
 local FEATS_EMPTY_TEXT = "No feats are available yet."
@@ -500,6 +548,42 @@ function HARDCORE.FailChallenge(reason)
     end
 end
 
+function HARDCORE.DebugResetFailedChallenge()
+    if not HARDCORE.saved then
+        return false
+    end
+
+    if HARDCORE.saved.isActive then
+        HARDCORE.SurrenderChallenge()
+    else
+        HARDCORE_DisableMinHpTracking()
+        if HARDCORE.RuleManager and HARDCORE.RuleManager.SetActive then
+            HARDCORE.RuleManager:SetActive(false)
+        end
+    end
+
+    HARDCORE.saved.hasDied = false
+    HARDCORE.saved.minHealthPct = 100
+    HARDCORE.saved.persistedMinHealthPct = 100
+
+    if HARDCORE.deathWindow then
+        HARDCORE.deathWindow:SetHidden(true)
+    end
+    if HARDCORE.subtitle then
+        HARDCORE.subtitle:SetText(HARDCORE.saved.hasSeenIntro and
+            "Hardcore Mode is inactive. You can re-enter anytime." or
+            "Accept the challenge to enable the ruleset on this character.")
+    end
+    if HARDCORE.UpdateActionButton then
+        HARDCORE.UpdateActionButton()
+    end
+    if HARDCORE.RefreshDifficultyUI then
+        HARDCORE.RefreshDifficultyUI()
+    end
+
+    return true
+end
+
 local function GetMainMenuBar()
     return MAIN_MENU_KEYBOARD and MAIN_MENU_KEYBOARD.categoryBar
 end
@@ -722,7 +806,7 @@ local function CreateIntroWindow()
     local subtleEdge = wm:CreateControl("HARDCORE_InnerEdge", inner, CT_BACKDROP)
     subtleEdge:SetAnchorFill(inner)
     subtleEdge:SetCenterColor(0, 0, 0, 0)
-    subtleEdge:SetEdgeTexture("/esoui/art/miscellaneous/centerscreen_announceEdge.dds", 32, 4, 4)
+    subtleEdge:SetEdgeTexture("/esoui/art/miscellaneous/dark_edgeframe_8_thin.dds", 32, 4, 4)
     subtleEdge:SetEdgeColor(0, 0, 0, 0.25)
     subtleEdge:SetDrawLayer(DL_OVERLAY)
     subtleEdge:SetDrawLevel(1)
@@ -1231,7 +1315,7 @@ local function CreateIntroWindow()
                 if HARDCORE.subtitle then
                     HARDCORE.subtitle:SetText("Hardcore Mode is inactive. You can re-enter anytime.")
                 end
-                ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.ABILITY_SKILL_PURCHASED,
+                ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.QUEST_ACCEPTED,
                     "HARDCORE: Challenge surrendered. Settings restored.")
                 HARDCORE.UpdateActionButton()
                 -- Reload UI to apply restored settings
@@ -1286,7 +1370,7 @@ local function CreateIntroWindow()
                 if HARDCORE.ChallengeManager and HARDCORE.ChallengeManager.SetActive then
                     HARDCORE.ChallengeManager:SetActive(true)
                 end
-                ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.ABILITY_SKILL_PURCHASED,
+                ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.QUEST_ACCEPTED,
                     "HARDCORE: Challenge active. Good luck!")
                 if HARDCORE.subtitle then
                     HARDCORE.subtitle:SetText("")
@@ -1365,6 +1449,9 @@ local function RegisterSlash()
         d("HARDCORE debug commands:")
         d("/hc debug help")
         d("/hc debug status")
+        d("/hc debug revive")
+        d("/hc debug failui")
+        d("/hc debug victoryui")
         d("/hc debug feats abandon")
         d("/hc debug rations full")
         d("/hc debug rations empty")
@@ -1382,12 +1469,21 @@ local function RegisterSlash()
         d("/hc debug bath progress <seconds>")
         d("/hc debug bath reset")
         d("/hc debug bath hud")
+        d("/hc debug blood status")
+        d("/hc debug blood due")
+        d("/hc debug blood satisfy")
+        d("/hc debug blood reset")
+        d("/hc debug blood hud")
         d("/hc debug lockpick status")
         d("/hc debug lockpick fail")
         d("/hc debug lockpick break")
         d("/hc debug lockpick success")
         d("/hc debug lockpick reset")
         d("/hc debug lockpick hud")
+        d("/hc debug barbarian status")
+        d("/hc debug barbarian enforce")
+        d("/hc debug handsfree status")
+        d("/hc debug handsfree enforce")
     end
 
     local function RunDebugCommand(args)
@@ -1423,8 +1519,42 @@ local function RegisterSlash()
             if HARDCORE.DebugSwimDisciplineStatus then
                 HARDCORE.DebugSwimDisciplineStatus()
             end
+            if HARDCORE.DebugNeedOfBloodStatus then
+                HARDCORE.DebugNeedOfBloodStatus()
+            end
             if HARDCORE.DebugLockpickNervesStatus then
                 HARDCORE.DebugLockpickNervesStatus()
+            end
+            if HARDCORE.DebugBarbarianStatus then
+                HARDCORE.DebugBarbarianStatus()
+            end
+            if HARDCORE.DebugHandsFreeStatus then
+                HARDCORE.DebugHandsFreeStatus()
+            end
+            return
+        end
+
+        if area == "revive" or area == "resetdeath" then
+            if HARDCORE.DebugResetFailedChallenge and HARDCORE.DebugResetFailedChallenge() then
+                ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.QUEST_ACCEPTED,
+                    "HARDCORE: Failed challenge state reset. Use /hc to re-enter.")
+            else
+                ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK,
+                    "HARDCORE: Failed challenge state could not be reset.")
+            end
+            return
+        end
+
+        if area == "failui" or area == "deathui" then
+            if HARDCORE.ShowDeathWindow then
+                HARDCORE.ShowDeathWindow(true)
+            end
+            return
+        end
+
+        if area == "victoryui" or area == "winui" then
+            if HARDCORE.ShowCongratulationsWindow then
+                HARDCORE.ShowCongratulationsWindow(true)
             end
             return
         end
@@ -1477,12 +1607,39 @@ local function RegisterSlash()
             return
         end
 
+        if area == "blood" or area == "needblood" then
+            if not HARDCORE.DebugNeedOfBloodCommand then
+                d("HARDCORE: Need of Blood debug helpers are not loaded.")
+                return
+            end
+            HARDCORE.DebugNeedOfBloodCommand(action or "help")
+            return
+        end
+
         if area == "lockpick" then
             if not HARDCORE.DebugLockpickNervesCommand then
                 d("HARDCORE: Lockpick Nerves debug helpers are not loaded.")
                 return
             end
             HARDCORE.DebugLockpickNervesCommand(action or "help")
+            return
+        end
+
+        if area == "barbarian" then
+            if not HARDCORE.DebugBarbarianCommand then
+                d("HARDCORE: Barbarian debug helpers are not loaded.")
+                return
+            end
+            HARDCORE.DebugBarbarianCommand(action or "help")
+            return
+        end
+
+        if area == "handsfree" or area == "hands" then
+            if not HARDCORE.DebugHandsFreeCommand then
+                d("HARDCORE: Hands Free debug helpers are not loaded.")
+                return
+            end
+            HARDCORE.DebugHandsFreeCommand(action or "help")
             return
         end
 
@@ -1614,6 +1771,38 @@ local function OnAddOnLoaded(event, addonName)
         local function RefreshSwimDisciplineOptions()
             if HARDCORE.RefreshSwimDisciplineOptions then
                 HARDCORE.RefreshSwimDisciplineOptions()
+            end
+        end
+        local function GetNoSwimmingSV()
+            if HARDCORE.GetNoSwimmingSV then
+                return HARDCORE.GetNoSwimmingSV()
+            end
+            return {
+                hud = {
+                    unlocked = false,
+                    showLabels = true
+                }
+            }
+        end
+        local function RefreshNoSwimmingOptions()
+            if HARDCORE.RefreshNoSwimmingOptions then
+                HARDCORE.RefreshNoSwimmingOptions()
+            end
+        end
+        local function GetNeedOfBloodSV()
+            if HARDCORE.GetNeedOfBloodSV then
+                return HARDCORE.GetNeedOfBloodSV()
+            end
+            return {
+                hud = {
+                    unlocked = false,
+                    showLabels = true
+                }
+            }
+        end
+        local function RefreshNeedOfBloodOptions()
+            if HARDCORE.RefreshNeedOfBloodOptions then
+                HARDCORE.RefreshNeedOfBloodOptions()
             end
         end
         local function GetLockpickNervesSV()
@@ -1839,6 +2028,101 @@ local function OnAddOnLoaded(event, addonName)
             }}
         }, {
             type = "submenu",
+            name = "No Swimming HUD",
+            tooltip = "Configure the water danger countdown display.",
+            controls = {{
+                type = "checkbox",
+                name = "Unlock water HUD",
+                tooltip = "Allow the No Swimming HUD to be dragged. Lock it again for normal play.",
+                width = "full",
+                getFunc = function()
+                    return GetNoSwimmingSV().hud.unlocked == true
+                end,
+                setFunc = function(val)
+                    GetNoSwimmingSV().hud.unlocked = val and true or false
+                    RefreshNoSwimmingOptions()
+                end,
+                default = false
+            }, {
+                type = "checkbox",
+                name = "Show water label",
+                tooltip = "Show the Water label above the danger status.",
+                width = "full",
+                getFunc = function()
+                    return GetNoSwimmingSV().hud.showLabels == true
+                end,
+                setFunc = function(val)
+                    GetNoSwimmingSV().hud.showLabels = val and true or false
+                    RefreshNoSwimmingOptions()
+                end,
+                default = true
+            }, {
+                type = "button",
+                name = "Reset HUD position",
+                tooltip = "Move the No Swimming HUD back beside the other feat meters.",
+                width = "full",
+                func = function()
+                    if HARDCORE.ResetNoSwimmingHudPosition then
+                        HARDCORE.ResetNoSwimmingHudPosition()
+                    end
+                end
+            }}
+        }, {
+            type = "submenu",
+            name = "Need of Blood HUD",
+            tooltip = "Configure the blood demand countdown display.",
+            controls = {{
+                type = "checkbox",
+                name = "Unlock blood HUD",
+                tooltip = "Allow the Need of Blood HUD to be dragged. Lock it again for normal play.",
+                width = "full",
+                getFunc = function()
+                    return GetNeedOfBloodSV().hud.unlocked == true
+                end,
+                setFunc = function(val)
+                    GetNeedOfBloodSV().hud.unlocked = val and true or false
+                    RefreshNeedOfBloodOptions()
+                end,
+                default = false
+            }, {
+                type = "checkbox",
+                name = "Show blood label",
+                tooltip = "Show the Blood label above the demand status.",
+                width = "full",
+                getFunc = function()
+                    return GetNeedOfBloodSV().hud.showLabels == true
+                end,
+                setFunc = function(val)
+                    GetNeedOfBloodSV().hud.showLabels = val and true or false
+                    RefreshNeedOfBloodOptions()
+                end,
+                default = true
+            }, {
+                type = "button",
+                name = "Reset HUD position",
+                tooltip = "Move the Need of Blood HUD back beside the other feat meters.",
+                width = "full",
+                func = function()
+                    if HARDCORE.ResetNeedOfBloodHudPosition then
+                        HARDCORE.ResetNeedOfBloodHudPosition()
+                    end
+                end
+            }, {
+                type = "button",
+                name = "Reset blood timer",
+                tooltip = "Restart the ten-minute countdown before the next blood demand.",
+                width = "full",
+                disabled = function()
+                    return HARDCORE.saved and HARDCORE.saved.isActive and not HARDCORE.saved.debugMode
+                end,
+                func = function()
+                    if HARDCORE.ResetNeedOfBloodTimer then
+                        HARDCORE.ResetNeedOfBloodTimer()
+                    end
+                end
+            }}
+        }, {
+            type = "submenu",
             name = "Lockpick Nerves HUD",
             tooltip = "Configure the lockpick panic display.",
             controls = {{
@@ -1916,9 +2200,53 @@ local function OnAddOnLoaded(event, addonName)
 
 end
 
-function HARDCORE.ShowCongratulationsWindow()
+local function PlayCongratulationsWindowSounds()
+    PlaySound(SOUNDS.BOOK_COLLECTION_COMPLETED)
+    zo_callLater(function() PlaySound(SOUNDS.LEVEL_UP_REWARD_CLAIM) end, 450)
+    zo_callLater(function() PlaySound(SOUNDS.OBJECTIVE_COMPLETED) end, 900)
+end
+
+local function ConfigureCongratulationsWindow(win, previewMode)
+    if not (win and win.actionButton and win.closeButton) then
+        return
+    end
+
+    if previewMode then
+        win.actionButton:SetText("Close Preview")
+        win.actionButton:SetHandler("OnClicked", function()
+            win:SetHidden(true)
+            SetGameCameraUIMode(false)
+        end)
+        win.closeButton:SetHandler("OnClicked", function()
+            win:SetHidden(true)
+            SetGameCameraUIMode(false)
+        end)
+        return
+    end
+
+    win.actionButton:SetText("End Challenge & Continue")
+    win.actionButton:SetHandler("OnClicked", function()
+        HARDCORE.saved.hasSeenCongrats = true
+        HARDCORE.SurrenderChallenge()
+        HARDCORE.RestoreHUDSettings()
+        win:SetHidden(true)
+        SetGameCameraUIMode(false)
+        ZO_Alert(UI_ALERT_CATEGORY_ALERT, SOUNDS.QUEST_ACCEPTED, "Hardcore Challenge Completed!")
+        zo_callLater(function() ReloadUI() end, 500)
+    end)
+    win.closeButton:SetHandler("OnClicked", function()
+        HARDCORE.saved.hasSeenCongrats = true
+        win:SetHidden(true)
+        SetGameCameraUIMode(false)
+    end)
+end
+
+function HARDCORE.ShowCongratulationsWindow(previewMode)
     if HARDCORE.congratsWindow then
+        ConfigureCongratulationsWindow(HARDCORE.congratsWindow, previewMode == true)
         HARDCORE.congratsWindow:SetHidden(false)
+        SetGameCameraUIMode(true)
+        PlayCongratulationsWindowSounds()
         return
     end
 
@@ -1961,7 +2289,7 @@ function HARDCORE.ShowCongratulationsWindow()
     local subtleEdge = wm:CreateControl("HARDCORE_CongratsInnerEdge", inner, CT_BACKDROP)
     subtleEdge:SetAnchorFill(inner)
     subtleEdge:SetCenterColor(0, 0, 0, 0)
-    subtleEdge:SetEdgeTexture("/esoui/art/miscellaneous/centerscreen_announceEdge.dds", 32, 4, 4)
+    subtleEdge:SetEdgeTexture("/esoui/art/miscellaneous/dark_edgeframe_8_thin.dds", 32, 4, 4)
     subtleEdge:SetEdgeColor(0, 0, 0, 0.25)
     subtleEdge:SetDrawLayer(DL_OVERLAY)
     subtleEdge:SetDrawLevel(1)
@@ -2011,34 +2339,56 @@ function HARDCORE.ShowCongratulationsWindow()
     desc:SetText("Your trial is over. You may now choose to continue\nyour journey as a normal adventurer.")
 
     local btn = wm:CreateControlFromVirtual("HARDCORE_CongratsActionButton", win, "ZO_DefaultButton")
+    win.actionButton = btn
     btn:SetAnchor(BOTTOM, win, BOTTOM, 0, -35)
     btn:SetDimensions(280, 44)
-    btn:SetText("End Challenge & Continue")
-    btn:SetHandler("OnClicked", function()
-        HARDCORE.saved.hasSeenCongrats = true
-        HARDCORE.SurrenderChallenge()
-        HARDCORE.RestoreHUDSettings()
-        win:SetHidden(true)
-        SetGameCameraUIMode(false)
-        ZO_Alert(UI_ALERT_CATEGORY_ALERT, SOUNDS.UI_GIFT_INVENTORY_VIEW_OPEN, "Hardcore Challenge Completed!")
-        zo_callLater(function() ReloadUI() end, 500)
-    end)
 
     local close = wm:CreateControlFromVirtual("HARDCORE_CongratsClose", win, "ZO_CloseButton")
+    win.closeButton = close
     close:SetAnchor(TOPRIGHT, win, TOPRIGHT, -18, 14)
-    close:SetHandler("OnClicked", function()
-        HARDCORE.saved.hasSeenCongrats = true
+
+    ConfigureCongratulationsWindow(win, previewMode == true)
+    SetGameCameraUIMode(true)
+    PlayCongratulationsWindowSounds()
+end
+
+local function ConfigureDeathWindow(win, previewMode)
+    if not (win and win.actionButton and win.closeButton) then
+        return
+    end
+
+    if previewMode then
+        win.actionButton:SetText("Close Preview")
+        win.actionButton:SetHandler("OnClicked", function()
+            win:SetHidden(true)
+            SetGameCameraUIMode(false)
+        end)
+        win.closeButton:SetHandler("OnClicked", function()
+            win:SetHidden(true)
+            SetGameCameraUIMode(false)
+        end)
+        return
+    end
+
+    win.actionButton:SetText("Accept Fate")
+    win.actionButton:SetHandler("OnClicked", function()
+        win:SetHidden(true)
+        SetGameCameraUIMode(false)
+        ZO_Alert(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, "Hardcore Challenge Failed.")
+        zo_callLater(function() ReloadUI() end, 500)
+    end)
+    win.closeButton:SetHandler("OnClicked", function()
         win:SetHidden(true)
         SetGameCameraUIMode(false)
     end)
-
-    SetGameCameraUIMode(true)
-    PlaySound(SOUNDS.UI_GIFT_INVENTORY_VIEW_OPEN)
 end
 
-function HARDCORE.ShowDeathWindow()
+function HARDCORE.ShowDeathWindow(previewMode)
     if HARDCORE.deathWindow then
+        ConfigureDeathWindow(HARDCORE.deathWindow, previewMode == true)
         HARDCORE.deathWindow:SetHidden(false)
+        SetGameCameraUIMode(true)
+        PlaySound(SOUNDS.ENDLESS_DUNGEON_RUN_COMPLETE)
         return
     end
 
@@ -2082,7 +2432,7 @@ function HARDCORE.ShowDeathWindow()
     local subtleEdge = wm:CreateControl("HARDCORE_DeathInnerEdge", inner, CT_BACKDROP)
     subtleEdge:SetAnchorFill(inner)
     subtleEdge:SetCenterColor(0, 0, 0, 0)
-    subtleEdge:SetEdgeTexture("/esoui/art/miscellaneous/centerscreen_announceEdge.dds", 32, 4, 4)
+    subtleEdge:SetEdgeTexture("/esoui/art/miscellaneous/dark_edgeframe_8_thin.dds", 32, 4, 4)
     subtleEdge:SetEdgeColor(0.8, 0.15, 0.15, 0.35)
     subtleEdge:SetDrawLayer(DL_OVERLAY)
     subtleEdge:SetDrawLevel(1)
@@ -2133,23 +2483,15 @@ function HARDCORE.ShowDeathWindow()
     desc:SetText("\nYou may continue on this character as a normal adventurer.")
 
     local btn = wm:CreateControlFromVirtual("HARDCORE_DeathActionButton", win, "ZO_DefaultButton")
+    win.actionButton = btn
     btn:SetAnchor(BOTTOM, win, BOTTOM, 0, -35)
     btn:SetDimensions(280, 44)
-    btn:SetText("Accept Fate")
-    btn:SetHandler("OnClicked", function()
-        win:SetHidden(true)
-        SetGameCameraUIMode(false)
-        ZO_Alert(UI_ALERT_CATEGORY_ALERT, SOUNDS.ABILITY_SKILL_PURCHASED, "Hardcore Challenge Failed.")
-        zo_callLater(function() ReloadUI() end, 500)
-    end)
 
     local close = wm:CreateControlFromVirtual("HARDCORE_DeathClose", win, "ZO_CloseButton")
+    win.closeButton = close
     close:SetAnchor(TOPRIGHT, win, TOPRIGHT, -18, 14)
-    close:SetHandler("OnClicked", function()
-        win:SetHidden(true)
-        SetGameCameraUIMode(false)
-    end)
 
+    ConfigureDeathWindow(win, previewMode == true)
     SetGameCameraUIMode(true)
     PlaySound(SOUNDS.ENDLESS_DUNGEON_RUN_COMPLETE)
 end

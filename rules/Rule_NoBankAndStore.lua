@@ -36,30 +36,6 @@ local function InstallHooks()
         return
     end
 
-    ZO_PreHook(SCENE_MANAGER, "Show", function(_, arg)
-        local sceneName
-        if type(arg) == "string" then
-            sceneName = arg
-        elseif type(arg) == "table" and arg.GetName then
-            sceneName = arg:GetName()
-        end
-        if not sceneName then
-            return false
-        end
-
-        if BankRule.active and sceneName == "bank" then
-            Announce("Bank")
-            return true
-        elseif BankRule.active and sceneName == "guildBank" then
-            Announce("Guild Bank")
-            return true
-        elseif GuildStoreRule.active and sceneName == "tradinghouse" then
-            Announce("Guild Store")
-            return true
-        end
-        return false
-    end)
-
     local names = {"bank", "guildBank", "tradinghouse"}
     for _, sceneName in ipairs(names) do
         local scene = SCENE_MANAGER:GetScene(sceneName)

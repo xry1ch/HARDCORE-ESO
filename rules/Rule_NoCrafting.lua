@@ -45,23 +45,6 @@ local function InstallHooks()
         return
     end
 
-    ZO_PreHook(SCENE_MANAGER, "Show", function(_, arg)
-        if not Rule.active then
-            return false
-        end
-        local sceneName
-        if type(arg) == "string" then
-            sceneName = arg
-        elseif type(arg) == "table" and arg.GetName then
-            sceneName = arg:GetName()
-        end
-        if sceneName and CRAFTING_SCENES[sceneName] then
-            Announce()
-            CleanExit()
-            return true
-        end
-    end)
-
     for name in pairs(CRAFTING_SCENES) do
         local scene = SCENE_MANAGER:GetScene(name)
         if scene then

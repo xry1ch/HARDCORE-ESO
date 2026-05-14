@@ -18,24 +18,6 @@ end
 local function InstallHooks()
   if Rule._hooksInstalled then return end
 
-  ZO_PreHook(SCENE_MANAGER, "Show", function(_, arg)
-    if not Rule.active then
-      return false
-    end
-
-    local sceneName
-    if type(arg) == "string" then
-      sceneName = arg
-    elseif type(arg) == "table" and arg.GetName then
-      sceneName = arg:GetName()
-    end
-
-    if sceneName == "mailInbox" or sceneName == "mailSend" then
-      Announce()
-      return true
-    end
-  end)
-
   local inbox = SCENE_MANAGER:GetScene("mailInbox")
   if inbox then
     inbox:RegisterCallback("StateChange", function(_, newState)
