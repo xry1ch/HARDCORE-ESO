@@ -8,7 +8,8 @@ local Rule = {
 }
 
 -- Internal state
-Rule._playerActivatedCallback = nil
+Rule.active = false
+Rule._eventsRegistered = false
 
 -- Helpers -------------------------------------------------------------
 
@@ -18,29 +19,45 @@ local function SetCompassHidden(hidden)
     end
 end
 
-function Rule:OnEnable()
-    if not COMPASS_FRAME or not COMPASS_FRAME.SetCompassHidden then
-        if not self._playerActivatedCallback then
-            self._playerActivatedCallback = function()
-                SetCompassHidden(true)
-                EVENT_MANAGER:UnregisterForEvent("HARDCORE_NoCompass", EVENT_PLAYER_ACTIVATED)
-                self._playerActivatedCallback = nil
-            end
-            EVENT_MANAGER:RegisterForEvent("HARDCORE_NoCompass", EVENT_PLAYER_ACTIVATED, self._playerActivatedCallback)
-        end
+local function ApplyHidden()
+    if not Rule.active then
         return
     end
-
     SetCompassHidden(true)
 end
 
-function Rule:OnDisable()
-    SetCompassHidden(false)
+local function ApplyHiddenDeferred()
+    ApplyHidden()
+    zo_callLater(ApplyHidden, 100)
+    zo_callLater(ApplyHidden, 500)
+end
 
-    if self._playerActivatedCallback then
-        EVENT_MANAGER:UnregisterForEvent("HARDCORE_NoCompass", EVENT_PLAYER_ACTIVATED)
-        self._playerActivatedCallback = nil
+local function RegisterEvents()
+    if Rule._eventsRegistered then
+        return
     end
+    EVENT_MANAGER:RegisterForEvent("HARDCORE_NoCompass_Activated", EVENT_PLAYER_ACTIVATED, ApplyHiddenDeferred)
+    EVENT_MANAGER:RegisterForEvent("HARDCORE_NoCompass_Alive", EVENT_PLAYER_ALIVE, ApplyHiddenDeferred)
+    Rule._eventsRegistered = true
+end
+
+local function UnregisterEvents()
+    EVENT_MANAGER:UnregisterForEvent("HARDCORE_NoCompass_Activated", EVENT_PLAYER_ACTIVATED)
+    EVENT_MANAGER:UnregisterForEvent("HARDCORE_NoCompass_Alive", EVENT_PLAYER_ALIVE)
+    Rule._eventsRegistered = false
+end
+
+function Rule:OnEnable()
+    self.active = true
+    RegisterEvents()
+    SetCompassHidden(true)
+    ApplyHiddenDeferred()
+end
+
+function Rule:OnDisable()
+    self.active = false
+    UnregisterEvents()
+    SetCompassHidden(false)
 end
 
 HARDCORE.RuleManager:RegisterRule(Rule)

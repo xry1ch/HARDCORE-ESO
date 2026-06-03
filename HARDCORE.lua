@@ -167,7 +167,7 @@ local FEATS = {{
     ruleId = "TrailRations"
 }, {
     title = "Road Weariness",
-    flavor = "Travel, stamina loss, and battle wear you down. Sit, sleep, or use furniture to rest before exhaustion makes weapons and NPCs slip out of reach.",
+    flavor = "Travel, stamina loss, and battle wear you down. /Sit or /sleep to rest before exhaustion makes weapons and NPCs slip out of reach.",
     icon = RULE_ICONS.weariness,
     difficulty = 1,
     ruleId = "RoadWeariness"
@@ -708,6 +708,7 @@ local function ActivateMenuButton()
         ZO_MenuBar_SelectDescriptor(bar, "HARDCORE_MAINMENU", true)
     end
 end
+
 local function AddHardcoreMainMenuButton()
     local bar = MAIN_MENU_KEYBOARD and MAIN_MENU_KEYBOARD.categoryBar
     if not bar or HARDCORE._mainMenuBtnAdded then

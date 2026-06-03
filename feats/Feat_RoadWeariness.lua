@@ -17,6 +17,10 @@ local NPC_LOCK_THRESHOLD = 10
 local ICON_FATIGUE = "/esoui/art/ava/ava_rankicon64_prefect.dds"
 local METER_FRAME_TEXTURE = "/esoui/art/actionbar/abilityframe64_up.dds"
 local METER_GLOW_TEXTURE = "/esoui/art/actionbar/abilityframe64_glow.dds"
+local OLD_DEFAULT_HUD_X = 478
+local OLD_DEFAULT_HUD_Y = 710
+local DEFAULT_HUD_X = 838
+local DEFAULT_HUD_Y = 710
 
 local Rule = {
     id = ID,
@@ -30,7 +34,6 @@ Rule._installed = false
 Rule._lastStamina = nil
 Rule._lastCombatDrainMs = 0
 Rule._resting = false
-Rule._previousSlash = {}
 
 local hudTLW
 local fatigueFill
@@ -47,8 +50,8 @@ local function GetSV()
             fatigue = 100,
             lastUpdateMs = 0,
             hud = {
-                x = 478,
-                y = 710,
+                x = DEFAULT_HUD_X,
+                y = DEFAULT_HUD_Y,
                 unlocked = false,
                 showLabels = true
             },
@@ -66,8 +69,12 @@ local function GetSV()
     sv.fatigue = tonumber(sv.fatigue) or 100
     sv.lastUpdateMs = tonumber(sv.lastUpdateMs) or 0
     sv.hud = sv.hud or {}
-    if sv.hud.x == nil then sv.hud.x = 478 end
-    if sv.hud.y == nil then sv.hud.y = 710 end
+    if sv.hud.x == OLD_DEFAULT_HUD_X and sv.hud.y == OLD_DEFAULT_HUD_Y then
+        sv.hud.x = DEFAULT_HUD_X
+        sv.hud.y = DEFAULT_HUD_Y
+    end
+    if sv.hud.x == nil then sv.hud.x = DEFAULT_HUD_X end
+    if sv.hud.y == nil then sv.hud.y = DEFAULT_HUD_Y end
     if sv.hud.unlocked == nil then sv.hud.unlocked = false end
     if sv.hud.showLabels == nil then sv.hud.showLabels = true end
     sv.warnings = sv.warnings or {}
@@ -133,39 +140,12 @@ local REST_SLASHES = {
 
 local function IsRestEmoteSlash(slashName)
     slashName = string.lower(tostring(slashName or ""))
-    return REST_SLASHES[slashName] == true
-end
-
-local function FindRestEmoteIndex(slashName)
-    slashName = string.lower(slashName)
-    if GetNumEmotes and GetEmoteInfo then
-        for i = 1, GetNumEmotes() do
-            local candidate = GetEmoteInfo(i)
-            if candidate and string.lower(candidate) == slashName then
-                return i
-            end
+    for slash in string.gmatch(slashName, "%S+") do
+        if REST_SLASHES[slash] == true then
+            return true
         end
     end
-    if GetEmoteIndex then
-        local id = tonumber(string.match(slashName, "%d+"))
-        if id then
-            return GetEmoteIndex(id)
-        end
-    end
-    return nil
-end
-
-local function PlayRestEmote(slashName)
-    local emoteIndex = FindRestEmoteIndex(slashName)
-    if emoteIndex and PlayEmoteByIndex then
-        PlayEmoteByIndex(emoteIndex)
-    else
-        local previous = Rule._previousSlash[slashName]
-        if previous then
-            previous("")
-        end
-    end
-    StartResting(true)
+    return false
 end
 
 local function ApplyHudPosition()
@@ -178,10 +158,10 @@ local function ApplyHudPosition()
     local hudW = hudTLW.GetWidth and hudTLW:GetWidth() or 58
     local hudH = hudTLW.GetHeight and hudTLW:GetHeight() or 76
     if rootW > 0 then
-        sv.hud.x = zo_clamp(tonumber(sv.hud.x) or 478, 0, zo_max(0, rootW - hudW))
+        sv.hud.x = zo_clamp(tonumber(sv.hud.x) or DEFAULT_HUD_X, 0, zo_max(0, rootW - hudW))
     end
     if rootH > 0 then
-        sv.hud.y = zo_clamp(tonumber(sv.hud.y) or 710, 0, zo_max(0, rootH - hudH))
+        sv.hud.y = zo_clamp(tonumber(sv.hud.y) or DEFAULT_HUD_Y, 0, zo_max(0, rootH - hudH))
     end
     hudTLW:ClearAnchors()
     hudTLW:SetAnchor(TOPLEFT, GuiRoot, TOPLEFT, sv.hud.x, sv.hud.y)
@@ -541,17 +521,6 @@ local function HookScenes()
     SetupScene("gamepad_hud")
 end
 
-local function RegisterRestSlashCommands()
-    for slashName in pairs(REST_SLASHES) do
-        if not Rule._previousSlash[slashName] then
-            Rule._previousSlash[slashName] = SLASH_COMMANDS[slashName]
-        end
-        SLASH_COMMANDS[slashName] = function()
-            PlayRestEmote(slashName)
-        end
-    end
-end
-
 local function Install()
     if Rule._installed then
         return
@@ -559,7 +528,6 @@ local function Install()
 
     EnsureHud()
     HookScenes()
-    RegisterRestSlashCommands()
 
     if ZO_PreHook and PlayEmoteByIndex then
         ZO_PreHook("PlayEmoteByIndex", function(emoteIndex)
@@ -653,8 +621,8 @@ end
 
 function Rule:ResetHudPosition()
     local sv = GetSV()
-    sv.hud.x = 478
-    sv.hud.y = 710
+    sv.hud.x = DEFAULT_HUD_X
+    sv.hud.y = DEFAULT_HUD_Y
     ApplyHudPosition()
     UpdateHud()
 end

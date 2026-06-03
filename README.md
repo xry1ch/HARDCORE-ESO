@@ -14,7 +14,7 @@ Feats are optional, permanent challenges that can be accepted during a Hardcore 
 
 Available feats:
 
-- **Road Weariness**: Travel, stamina loss, and battle wear you down. Sit, sleep, or use furniture to rest before exhaustion makes weapons and NPCs slip out of reach.
+- **Road Weariness**: Travel, stamina loss, and battle wear you down. Sit or sleep to rest before exhaustion makes weapons and NPCs slip out of reach.
 - **Trail Rations**: Hunger and thirst drain as the road stretches on. Keep food and drink in your pack, or starvation will dim the world around you.
 - **No Swimming**: Deep water gives you fifteen seconds of mercy. Keep swimming after the timer runs dry and the challenge ends.
 - **No Potions**: Drink a potion and the run ends. No emergency bottle, no alchemist's mercy.

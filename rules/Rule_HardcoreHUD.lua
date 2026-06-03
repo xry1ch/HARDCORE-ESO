@@ -51,9 +51,6 @@ local function hideActionBar(yes)
     if ACTION_BAR_FRAGMENT and ACTION_BAR_FRAGMENT.SetHiddenForReason then
         ACTION_BAR_FRAGMENT:SetHiddenForReason(HIDE_REASON, yes and true or false)
     end
-    if ZO_ActionBar1 then
-        ZO_ActionBar1:SetHidden(yes and true or false)
-    end
 end
 
 -- --- Action bar "peek" animation ---
@@ -86,7 +83,6 @@ local function EnsureFadeTimeline()
         if ACTION_BAR_FRAGMENT and ACTION_BAR_FRAGMENT.SetHiddenForReason then
             ACTION_BAR_FRAGMENT:SetHiddenForReason(HIDE_REASON, false)
         end
-        ZO_ActionBar1:SetHidden(false)
         ZO_ActionBar1:SetAlpha(0)
         if ZO_ActionBar1.SetMouseEnabled then
             ZO_ActionBar1:SetMouseEnabled(false)

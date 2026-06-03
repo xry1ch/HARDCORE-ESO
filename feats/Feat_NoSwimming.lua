@@ -5,7 +5,9 @@ local NS = "HARDCORE_NoSwimming"
 
 local SWIM_LIMIT_MS = 15 * 1000
 local TICK_MS = 250
-local DEFAULT_HUD_X = 760
+local OLD_DEFAULT_HUD_X = 760
+local OLD_DEFAULT_HUD_Y = 710
+local DEFAULT_HUD_X = 1120
 local DEFAULT_HUD_Y = 710
 local ICON_NO_SWIMMING = "/esoui/art/inventory/inventory_tabicon_craftbag_fishing_up.dds"
 local FRAME_TEXTURE = "/esoui/art/actionbar/abilityframe64_up.dds"
@@ -52,6 +54,10 @@ local function GetSV()
     sv.startedAtS = tonumber(sv.startedAtS) or 0
     sv.warned = sv.warned == true
     sv.hud = sv.hud or {}
+    if sv.hud.x == OLD_DEFAULT_HUD_X and sv.hud.y == OLD_DEFAULT_HUD_Y then
+        sv.hud.x = DEFAULT_HUD_X
+        sv.hud.y = DEFAULT_HUD_Y
+    end
     if sv.hud.x == nil then sv.hud.x = DEFAULT_HUD_X end
     if sv.hud.y == nil then sv.hud.y = DEFAULT_HUD_Y end
     if sv.hud.unlocked == nil then sv.hud.unlocked = false end

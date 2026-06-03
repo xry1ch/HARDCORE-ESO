@@ -12,12 +12,22 @@ Rule.active = false
 Rule._hooksInstalled = false
 
 local function IsPlayerInCity()
-    local zoneIndex, poiIndex = GetCurrentSubZonePOIIndices()
-    if zoneIndex and poiIndex then
-        local poiName, _, _, _, _, poiType = GetPOIInfo(zoneIndex, poiIndex)
-        return poiName and poiName ~= "" and poiType == POI_TYPE_STANDARD and IsInJusticeEnabledZone() and not IsInAvAZone()
+    if not IsInJusticeEnabledZone() or IsInOutlawZone() or IsInAvAZone() then
+        return false
     end
-    return false
+
+    local zoneIndex, poiIndex = GetCurrentSubZonePOIIndices()
+    if not zoneIndex or not poiIndex then
+        return false
+    end
+
+    local poiName = GetPOIInfo(zoneIndex, poiIndex)
+    if not poiName or poiName == "" then
+        return false
+    end
+
+    local poiType = GetPOIType(zoneIndex, poiIndex)
+    return poiType == POI_TYPE_STANDARD or poiType == POI_TYPE_OBJECTIVE
 end
 
 local function Announce()

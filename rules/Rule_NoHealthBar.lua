@@ -10,6 +10,8 @@ local Rule = {
 local NS = "HARDCORE_NoHealthBar"
 Rule.active = false
 Rule._installed = false
+Rule._healthExternalVisibilityRequirement = nil
+Rule._healthVisibilityCaptured = false
 
 local originalVolume = nil
 local volumeLowered = false
@@ -97,42 +99,52 @@ local function FadeFactorFromHP(hp)
     local t = zo_clamp((FADE_START_HP - hp) / FADE_START_HP, 0, 1)
     return math.pow(t, CURVE_STRENGTH)
 end
+
+local function GetHealthControl()
+    if PLAYER_ATTRIBUTE_BARS and PLAYER_ATTRIBUTE_BARS.control then
+        return GetControl(PLAYER_ATTRIBUTE_BARS.control, "Health")
+    end
+    return _G["ZO_PlayerAttributeHealth"]
+end
+
+local function SetHealthBarHidden(hidden)
+    local healthControl = GetHealthControl()
+    if not healthControl then
+        return
+    end
+
+    local healthBar = healthControl.playerAttributeBarObject
+    if healthBar and healthBar.SetExternalVisibilityRequirement then
+        if hidden then
+            if not Rule._healthVisibilityCaptured then
+                Rule._healthExternalVisibilityRequirement = healthBar.externalVisibilityRequirement
+                Rule._healthVisibilityCaptured = true
+            end
+            healthBar:SetExternalVisibilityRequirement(function() return false end)
+        else
+            healthBar:SetExternalVisibilityRequirement(Rule._healthExternalVisibilityRequirement)
+            Rule._healthExternalVisibilityRequirement = nil
+            Rule._healthVisibilityCaptured = false
+        end
+        if healthBar.UpdateContextualFading then
+            healthBar:UpdateContextualFading()
+        end
+    end
+
+    if healthControl.SetHidden then
+        healthControl:SetHidden(hidden and true or false)
+    end
+end
+
 local function ApplyHide()
     if not Rule.active then
         return
     end
-
-    local ctrl = _G["ZO_PlayerAttributeHealth"]
-    if ctrl and ctrl.SetHidden then
-        ctrl:SetHidden(true)
-    end
-
-    local fb = _G["ZO_PlayerAttributeHealthFrame"]
-    if fb and fb.SetHidden then
-        fb:SetHidden(true)
-    end
-
-    local bar = _G["ZO_PlayerAttributeHealthStatusBar"]
-    if bar and bar.SetAlpha then
-        bar:SetAlpha(0)
-    end
+    SetHealthBarHidden(true)
 end
 
 local function RemoveHide()
-    local ctrl = _G["ZO_PlayerAttributeHealth"]
-    if ctrl and ctrl.SetHidden then
-        ctrl:SetHidden(false)
-    end
-
-    local fb = _G["ZO_PlayerAttributeHealthFrame"]
-    if fb and fb.SetHidden then
-        fb:SetHidden(false)
-    end
-
-    local bar = _G["ZO_PlayerAttributeHealthStatusBar"]
-    if bar and bar.SetAlpha then
-        bar:SetAlpha(1)
-    end
+    SetHealthBarHidden(false)
 end
 
 -- === Fullscreen overlay ====================================================
@@ -354,6 +366,8 @@ local function Install()
     EVENT_MANAGER:RegisterForEvent(NS .. "_ACTIVATED", EVENT_PLAYER_ACTIVATED, function()
         if Rule.active then
             ApplyHide()
+            zo_callLater(ApplyHide, 100)
+            zo_callLater(ApplyHide, 500)
             UpdateOverlayFromHealth()
             local onHud = IsOnHud()
             SetOverlayHidden(not onHud or IsVisionDimDisabled())

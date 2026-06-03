@@ -11,6 +11,10 @@ local TICK_MS = 1000
 local ICON_SWIM = "/esoui/art/inventory/inventory_tabicon_craftbag_fishing_up.dds"
 local FRAME_TEXTURE = "/esoui/art/actionbar/abilityframe64_up.dds"
 local GLOW_TEXTURE = "/esoui/art/actionbar/abilityframe64_glow.dds"
+local OLD_DEFAULT_HUD_X = 540
+local OLD_DEFAULT_HUD_Y = 710
+local DEFAULT_HUD_X = 900
+local DEFAULT_HUD_Y = 710
 
 local Rule = {
     id = ID,
@@ -42,8 +46,8 @@ local function GetSV()
             graceRemainingMs = GRACE_MS,
             graceActive = false,
             hud = {
-                x = 540,
-                y = 710,
+                x = DEFAULT_HUD_X,
+                y = DEFAULT_HUD_Y,
                 unlocked = false,
                 showLabels = true
             },
@@ -58,8 +62,12 @@ local function GetSV()
     sv.graceRemainingMs = zo_clamp(tonumber(sv.graceRemainingMs) or GRACE_MS, 0, GRACE_MS)
     sv.graceActive = sv.graceActive == true
     sv.hud = sv.hud or {}
-    if sv.hud.x == nil then sv.hud.x = 540 end
-    if sv.hud.y == nil then sv.hud.y = 710 end
+    if sv.hud.x == OLD_DEFAULT_HUD_X and sv.hud.y == OLD_DEFAULT_HUD_Y then
+        sv.hud.x = DEFAULT_HUD_X
+        sv.hud.y = DEFAULT_HUD_Y
+    end
+    if sv.hud.x == nil then sv.hud.x = DEFAULT_HUD_X end
+    if sv.hud.y == nil then sv.hud.y = DEFAULT_HUD_Y end
     if sv.hud.unlocked == nil then sv.hud.unlocked = false end
     if sv.hud.showLabels == nil then sv.hud.showLabels = true end
     sv.warnedDue = sv.warnedDue == true
@@ -114,10 +122,10 @@ local function ApplyHudPosition()
     local hudW = hudTLW.GetWidth and hudTLW:GetWidth() or 214
     local hudH = hudTLW.GetHeight and hudTLW:GetHeight() or 70
     if rootW > 0 then
-        sv.hud.x = zo_clamp(tonumber(sv.hud.x) or 540, 0, zo_max(0, rootW - hudW))
+        sv.hud.x = zo_clamp(tonumber(sv.hud.x) or DEFAULT_HUD_X, 0, zo_max(0, rootW - hudW))
     end
     if rootH > 0 then
-        sv.hud.y = zo_clamp(tonumber(sv.hud.y) or 710, 0, zo_max(0, rootH - hudH))
+        sv.hud.y = zo_clamp(tonumber(sv.hud.y) or DEFAULT_HUD_Y, 0, zo_max(0, rootH - hudH))
     end
     hudTLW:ClearAnchors()
     hudTLW:SetAnchor(TOPLEFT, GuiRoot, TOPLEFT, sv.hud.x, sv.hud.y)
@@ -473,8 +481,8 @@ end
 
 function Rule:ResetHudPosition()
     local sv = GetSV()
-    sv.hud.x = 540
-    sv.hud.y = 710
+    sv.hud.x = DEFAULT_HUD_X
+    sv.hud.y = DEFAULT_HUD_Y
     ApplyHudPosition()
     UpdateHud()
 end
