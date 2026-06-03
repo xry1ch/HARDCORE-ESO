@@ -375,6 +375,18 @@ local function FormatCompletedFeatsText(completedFeats)
     return table.concat(lines, "\n")
 end
 
+local function GetPlayedTimeSeconds()
+    return tonumber(GetSecondsPlayed()) or 0
+end
+
+local function GetPlayedTimeText()
+    return ZO_FormatTime(GetPlayedTimeSeconds(), TIME_FORMAT_STYLE_DESCRIPTIVE, TIME_FORMAT_PRECISION_SECONDS)
+end
+
+local function GetCompactPlayedTimeText()
+    return ZO_FormatTimeLargestTwo(GetPlayedTimeSeconds(), TIME_FORMAT_STYLE_DESCRIPTIVE_MINIMAL)
+end
+
 function HARDCORE.SetDifficultySliderEnabled(enabled)
     HARDCORE._difficultyControlsEnabled = enabled and true or false
 
@@ -522,6 +534,9 @@ function HARDCORE.UpdateActiveStatsUI()
     local minPct = (HARDCORE.saved and HARDCORE.saved.persistedMinHealthPct) or 100
     if HARDCORE.activeStats.minHpLabel then
         HARDCORE.activeStats.minHpLabel:SetText(string.format("%d%%", minPct))
+    end
+    if HARDCORE.activeStats.playedTimeLabel then
+        HARDCORE.activeStats.playedTimeLabel:SetText("Alive: " .. GetCompactPlayedTimeText())
     end
 end
 
@@ -1334,7 +1349,7 @@ local function CreateIntroWindow()
     local stats = wm:CreateControl("HARDCORE_ActiveStats", win, CT_CONTROL)
     HARDCORE.activeStats = stats
     stats:SetAnchor(LEFT, btn, RIGHT, 82, 0)
-    stats:SetDimensions(260, 44)
+    stats:SetDimensions(260, 62)
     stats:SetHidden(true)
 
     local statsBg = wm:CreateControl(nil, stats, CT_BACKDROP)
@@ -1376,6 +1391,15 @@ local function CreateIntroWindow()
     minHpLabel:SetFont("$(BOLD_FONT)|18|soft-shadow-thin")
     minHpLabel:SetColor(COLOR.gray:UnpackRGBA())
     minHpLabel:SetText("100%")
+
+    local playedTimeLabel = wm:CreateControl(nil, stats, CT_LABEL)
+    stats.playedTimeLabel = playedTimeLabel
+    playedTimeLabel:SetAnchor(TOPLEFT, stats, TOPLEFT, 12, 38)
+    playedTimeLabel:SetDimensions(236, 18)
+    playedTimeLabel:SetFont("$(MEDIUM_FONT)|13|soft-shadow-thin")
+    playedTimeLabel:SetHorizontalAlignment(TEXT_ALIGN_CENTER)
+    playedTimeLabel:SetColor(COLOR.dim:UnpackRGBA())
+    playedTimeLabel:SetText("Alive: --")
 
     local function UpdateActionButton()
         btn:SetHidden(false)
@@ -2339,6 +2363,12 @@ local function RefreshCongratulationsWindowSummary(win)
     if win.featsCompletedValue then
         win.featsCompletedValue:SetText(tostring(completedCount))
     end
+    if win.playedTimeValue then
+        win.playedTimeValue:SetText(GetCompactPlayedTimeText())
+    end
+    if win.playedTimeFull then
+        win.playedTimeFull:SetText("Alive: " .. GetPlayedTimeText())
+    end
     if win.featsCompletedList then
         win.featsCompletedList:SetText(FormatCompletedFeatsText(completedFeats))
         win.featsCompletedList:SetColor((completedCount > 0 and COLOR.gray or COLOR.dim):UnpackRGBA())
@@ -2398,7 +2428,7 @@ function HARDCORE.ShowCongratulationsWindow(previewMode)
     win:SetClampedToScreen(true)
     win:SetResizeHandleSize(0)
     win:SetAnchor(CENTER, GuiRoot, CENTER, 0, -40)
-    win:SetDimensions(780, 560)
+    win:SetDimensions(780, 590)
 
     local frame = wm:CreateControl(nil, win, CT_BACKDROP)
     frame:SetAnchorFill()
@@ -2473,7 +2503,7 @@ function HARDCORE.ShowCongratulationsWindow(previewMode)
 
     local summary = wm:CreateControl("HARDCORE_CongratsSummary", inner, CT_BACKDROP)
     summary:SetAnchor(TOP, subTitle, BOTTOM, 0, 24)
-    summary:SetDimensions(640, 180)
+    summary:SetDimensions(640, 210)
     summary:SetCenterColor(0.02, 0.015, 0.01, 0.62)
     summary:SetEdgeTexture("/esoui/art/chatwindow/chat_bg_edge.dds", 32, 4, 4)
     summary:SetEdgeColor(0.9, 0.72, 0.34, 0.38)
@@ -2487,8 +2517,8 @@ function HARDCORE.ShowCongratulationsWindow(previewMode)
     summaryTitle:SetText("Run Summary")
 
     local lowestHealthLabel = wm:CreateControl(nil, summary, CT_LABEL)
-    lowestHealthLabel:SetAnchor(TOPLEFT, summary, TOPLEFT, 54, 50)
-    lowestHealthLabel:SetDimensions(220, 22)
+    lowestHealthLabel:SetAnchor(TOPLEFT, summary, TOPLEFT, 32, 50)
+    lowestHealthLabel:SetDimensions(170, 22)
     lowestHealthLabel:SetFont("$(MEDIUM_FONT)|15|soft-shadow-thin")
     lowestHealthLabel:SetHorizontalAlignment(TEXT_ALIGN_CENTER)
     lowestHealthLabel:SetColor(COLOR.dim:UnpackRGBA())
@@ -2497,14 +2527,30 @@ function HARDCORE.ShowCongratulationsWindow(previewMode)
     local lowestHealthValue = wm:CreateControl(nil, summary, CT_LABEL)
     win.lowestHealthValue = lowestHealthValue
     lowestHealthValue:SetAnchor(TOP, lowestHealthLabel, BOTTOM, 0, -2)
-    lowestHealthValue:SetDimensions(220, 38)
+    lowestHealthValue:SetDimensions(170, 38)
     lowestHealthValue:SetFont("$(BOLD_FONT)|32|soft-shadow-thick")
     lowestHealthValue:SetHorizontalAlignment(TEXT_ALIGN_CENTER)
     lowestHealthValue:SetColor(COLOR.white:UnpackRGBA())
 
+    local playedTimeLabel = wm:CreateControl(nil, summary, CT_LABEL)
+    playedTimeLabel:SetAnchor(TOP, summary, TOP, 0, 50)
+    playedTimeLabel:SetDimensions(190, 22)
+    playedTimeLabel:SetFont("$(MEDIUM_FONT)|15|soft-shadow-thin")
+    playedTimeLabel:SetHorizontalAlignment(TEXT_ALIGN_CENTER)
+    playedTimeLabel:SetColor(COLOR.dim:UnpackRGBA())
+    playedTimeLabel:SetText("Alive")
+
+    local playedTimeValue = wm:CreateControl(nil, summary, CT_LABEL)
+    win.playedTimeValue = playedTimeValue
+    playedTimeValue:SetAnchor(TOP, playedTimeLabel, BOTTOM, 0, 0)
+    playedTimeValue:SetDimensions(190, 32)
+    playedTimeValue:SetFont("$(BOLD_FONT)|24|soft-shadow-thick")
+    playedTimeValue:SetHorizontalAlignment(TEXT_ALIGN_CENTER)
+    playedTimeValue:SetColor(COLOR.white:UnpackRGBA())
+
     local featsCompletedLabel = wm:CreateControl(nil, summary, CT_LABEL)
-    featsCompletedLabel:SetAnchor(TOPRIGHT, summary, TOPRIGHT, -54, 50)
-    featsCompletedLabel:SetDimensions(220, 22)
+    featsCompletedLabel:SetAnchor(TOPRIGHT, summary, TOPRIGHT, -32, 50)
+    featsCompletedLabel:SetDimensions(170, 22)
     featsCompletedLabel:SetFont("$(MEDIUM_FONT)|15|soft-shadow-thin")
     featsCompletedLabel:SetHorizontalAlignment(TEXT_ALIGN_CENTER)
     featsCompletedLabel:SetColor(COLOR.dim:UnpackRGBA())
@@ -2513,20 +2559,28 @@ function HARDCORE.ShowCongratulationsWindow(previewMode)
     local featsCompletedValue = wm:CreateControl(nil, summary, CT_LABEL)
     win.featsCompletedValue = featsCompletedValue
     featsCompletedValue:SetAnchor(TOP, featsCompletedLabel, BOTTOM, 0, -2)
-    featsCompletedValue:SetDimensions(220, 38)
+    featsCompletedValue:SetDimensions(170, 38)
     featsCompletedValue:SetFont("$(BOLD_FONT)|32|soft-shadow-thick")
     featsCompletedValue:SetHorizontalAlignment(TEXT_ALIGN_CENTER)
     featsCompletedValue:SetColor(COLOR.white:UnpackRGBA())
 
     local featList = wm:CreateControl(nil, summary, CT_LABEL)
     win.featsCompletedList = featList
-    featList:SetAnchor(TOP, summary, TOP, 0, 116)
+    featList:SetAnchor(TOP, summary, TOP, 0, 118)
     featList:SetDimensions(580, 54)
     featList:SetFont("$(MEDIUM_FONT)|14|soft-shadow-thin")
     featList:SetHorizontalAlignment(TEXT_ALIGN_CENTER)
 
+    local playedTimeFull = wm:CreateControl(nil, summary, CT_LABEL)
+    win.playedTimeFull = playedTimeFull
+    playedTimeFull:SetAnchor(TOP, summary, TOP, 0, 174)
+    playedTimeFull:SetDimensions(580, 24)
+    playedTimeFull:SetFont("$(MEDIUM_FONT)|14|soft-shadow-thin")
+    playedTimeFull:SetHorizontalAlignment(TEXT_ALIGN_CENTER)
+    playedTimeFull:SetColor(COLOR.dim:UnpackRGBA())
+
     local desc = wm:CreateControl(nil, inner, CT_LABEL)
-    desc:SetAnchor(TOP, summary, BOTTOM, 0, 18)
+    desc:SetAnchor(TOP, summary, BOTTOM, 0, 12)
     desc:SetFont("$(MEDIUM_FONT)|20")
     desc:SetHorizontalAlignment(TEXT_ALIGN_CENTER)
     desc:SetColor(COLOR.gray:UnpackRGBA())
