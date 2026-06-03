@@ -14,16 +14,17 @@ Feats are optional, permanent challenges that can be accepted during a Hardcore 
 
 Available feats:
 
-- **Road Weariness**: Exertion, stamina loss, and combat drain your rest. Sit, sleep, or use furniture to recover before exhaustion leaves your weapons too heavy to carry.
-- **Trail Rations**: Hunger and thirst meters drain over time. Eat and drink often, or your vision darkens as supplies run out.
-- **No Swimming**: Entering water starts a short danger timer. Stay in too long and the challenge ends.
-- **No Potions**: Potion use is forbidden. Consuming a potion ends the challenge.
-- **Barbarian**: Fight only with two-handed melee weapons. Wear no helm or chest armor, and keep every other armor slot heavy.
-- **Nudist**: Armor cannot be worn. Weapons and jewelry are still allowed.
-- **Lockpick Nerves**: Failed or broken lockpicks build panic. Three mistakes within ten seconds end the challenge; successful locks steady your hands.
-- **Hands Free**: No weapons may be equipped. Fight, survive, and travel with empty hands.
-- **Need of Blood**: Every ten minutes, a blood demand begins. Only then does a kill count, and you have twenty seconds before the run ends.
-- **Mandatory Bath Time**: Every fifteen minutes, bath time comes due. Soak for ten seconds, or the final countdown begins.
+- **Road Weariness**: Travel, stamina loss, and battle wear you down. Sit, sleep, or use furniture to rest before exhaustion makes weapons and NPCs slip out of reach.
+- **Trail Rations**: Hunger and thirst drain as the road stretches on. Keep food and drink in your pack, or starvation will dim the world around you.
+- **No Swimming**: Deep water gives you fifteen seconds of mercy. Keep swimming after the timer runs dry and the challenge ends.
+- **No Potions**: Drink a potion and the run ends. No emergency bottle, no alchemist's mercy.
+- **Barbarian**: Live by the great weapon: only two-handed axes, hammers, and swords may stay equipped. Head and chest stay bare; all other armor must be heavy.
+- **Nudist**: Armor slots must stay bare: no helm, chest, shoulders, gloves, belt, legs, or boots. Weapons and jewelry are still allowed.
+- **Lockpick Nerves**: Each failed or broken pick leaves a panic mark for ten seconds. Three marks break your nerve and end the run; a clean lock steadies your hands.
+- **Hands Free**: Weapons are off the table. Improvise, punch, dodge, pray, or discover how persuasive empty hands can be.
+- **Need of Blood**: Every ten minutes, the blood demand wakes. Only kills during its twenty-second window count; fail to feed it and the run ends.
+- **Mandatory Bath Time**: Every fifteen minutes, the bath bell tolls. Enter water and soak for ten seconds, or the short grace countdown ends the run.
+- **Silent Pilgrim**: You have taken a vow of silence: no talking to NPCs, no quest chatter, no turn-ins. Dialogue is closed before a single word leaves your mouth.
 
 ## The Rules
 

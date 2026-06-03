@@ -57,7 +57,8 @@ local RULE_ICONS = {
     noswimming = "/esoui/art/inventory/inventory_tabicon_craftbag_fishing_up.dds",
     nudist = "/esoui/art/inventory/inventory_tabicon_armor_up.dds",
     blood = "/esoui/art/lfg/lfg_dps_up_64.dds",
-    potions = "/esoui/art/tradinghouse/tradinghouse_potions_potionsolvent_up.dds"
+    potions = "/esoui/art/tradinghouse/tradinghouse_potions_potionsolvent_up.dds",
+    npctalk = "EsoUI/Art/MainMenu/menuBar_social_up.dds"
 }
 
 local RULES = {{
@@ -158,64 +159,70 @@ local DIFFICULTY_TIERS = {
 
 local FEATS = {{
     title = "Trail Rations",
-    flavor = "Survival meters track hunger and thirst. Eat food and drink often, or the road will close in and darken your vision.",
+    flavor = "Hunger and thirst drain as the road stretches on. Keep food and drink in your pack, or starvation will dim the world around you.",
     icon = RULE_ICONS.rations,
     difficulty = 2,
     ruleId = "TrailRations"
 }, {
     title = "Road Weariness",
-    flavor = "Exertion, stamina loss, and combat drain your rest. Sit, sleep, or use furniture to recover before exhaustion leaves your weapons too heavy to carry.",
+    flavor = "Travel, stamina loss, and battle wear you down. Sit, sleep, or use furniture to rest before exhaustion makes weapons and NPCs slip out of reach.",
     icon = RULE_ICONS.weariness,
     difficulty = 1,
     ruleId = "RoadWeariness"
 }, {
     title = "Mandatory Bath Time",
-    flavor = "Every fifteen minutes, bath time comes due. Soak for ten seconds, or the final countdown begins." ,
+    flavor = "Every fifteen minutes, the bath bell tolls. Enter water and soak for ten seconds, or the short grace countdown ends the run." ,
     icon = RULE_ICONS.swim,
     difficulty = 5,
     ruleId = "SwimDiscipline"
 }, {
     title = "Lockpick Nerves",
-    flavor = "Failed or broken lockpicks shake your nerves. Three mistakes within ten seconds break your focus and end the challenge; successful locks steady your hands.",
+    flavor = "Each failed or broken pick leaves a panic mark for ten seconds. Three marks break your nerve and end the run; a clean lock steadies your hands.",
     icon = RULE_ICONS.lockpick,
     difficulty = 3,
     ruleId = "LockpickNerves"
 }, {
     title = "Barbarian",
-    flavor = "Fight only with two-handed melee weapons. Wear no helm or chest armor, and keep every other armor slot heavy.",
+    flavor = "Live by the great weapon: only two-handed axes, hammers, and swords may stay equipped. Head and chest stay bare; all other armor must be heavy.",
     icon = RULE_ICONS.barbarian,
     difficulty = 3,
     ruleId = "Barbarian"
 }, {
     title = "Hands Free",
-    flavor = "No weapons may be equipped. Fight, survive, and travel with empty hands.",
+    flavor = "Weapons are off the table. Improvise, punch, dodge, pray, or discover how persuasive empty hands can be.",
     icon = RULE_ICONS.handsfree,
     difficulty = 4,
     ruleId = "HandsFree"
 }, {
     title = "No Swimming",
-    flavor = "Entering water starts a short danger timer. Stay in too long and the challenge ends.",
+    flavor = "Deep water gives you fifteen seconds of mercy. Keep swimming after the timer runs dry and the challenge ends.",
     icon = RULE_ICONS.noswimming,
     difficulty = 2,
     ruleId = "NoSwimming"
 }, {
     title = "Nudist",
-    flavor = "Armor cannot be worn. Weapons and jewelry are still allowed.",
+    flavor = "Armor slots must stay bare: no helm, chest, shoulders, gloves, belt, legs, or boots. Weapons and jewelry are still allowed.",
     icon = RULE_ICONS.nudist,
     difficulty = 3,
     ruleId = "Nudist"
 }, {
     title = "Need of Blood",
-    flavor = "Every ten minutes the blood demand begins. Only then does a kill count, and you have twenty seconds before the run ends.",
+    flavor = "Every ten minutes, the blood demand wakes. Only kills during its twenty-second window count; fail to feed it and the run ends.",
     icon = RULE_ICONS.blood,
     difficulty = 4,
     ruleId = "NeedOfBlood"
 }, {
     title = "No Potions",
-    flavor = "Potion use is forbidden. Consuming a potion ends the challenge.",
+    flavor = "Drink a potion and the run ends. No emergency bottle, no alchemist's mercy.",
     icon = RULE_ICONS.potions,
     difficulty = 2,
     ruleId = "NoPotions"
+}, {
+    title = "Silent Pilgrim",
+    flavor = "You have taken a vow of silence: no talking to NPCs, no quest chatter, no turn-ins. Dialogue is closed before a single word leaves your mouth.",
+    icon = RULE_ICONS.npctalk,
+    difficulty = 4,
+    ruleId = "NoNpcTalk"
 }}
 local FEAT_RULE_IDS = {
     TrailRations = true,
@@ -227,7 +234,8 @@ local FEAT_RULE_IDS = {
     NoSwimming = true,
     Nudist = true,
     NeedOfBlood = true,
-    NoPotions = true
+    NoPotions = true,
+    NoNpcTalk = true
 }
 
 local FEATS_EMPTY_TEXT = "No feats are available yet."
