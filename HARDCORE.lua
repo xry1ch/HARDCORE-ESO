@@ -59,7 +59,8 @@ local RULE_ICONS = {
     nudist = "/esoui/art/inventory/inventory_tabicon_armor_up.dds",
     blood = "/esoui/art/lfg/lfg_dps_up_64.dds",
     potions = "/esoui/art/tradinghouse/tradinghouse_potions_potionsolvent_up.dds",
-    npctalk = "EsoUI/Art/MainMenu/menuBar_social_up.dds"
+    npctalk = "EsoUI/Art/MainMenu/menuBar_social_up.dds",
+    map = "/esoui/art/mainmenu/menubar_map_up.dds"
 }
 
 local RULES = {{
@@ -230,6 +231,12 @@ local FEATS = {{
     icon = RULE_ICONS.npctalk,
     difficulty = 4,
     ruleId = "NoNpcTalk"
+}, {
+    title = "No Map",
+    flavor = "The road must be remembered, not drawn.",
+    icon = RULE_ICONS.map,
+    difficulty = 3,
+    ruleId = "NoMap"
 }}
 local FEAT_RULE_IDS = {
     TrailRations = true,
@@ -243,7 +250,8 @@ local FEAT_RULE_IDS = {
     Nudist = true,
     NeedOfBlood = true,
     NoPotions = true,
-    NoNpcTalk = true
+    NoNpcTalk = true,
+    NoMap = true
 }
 
 local FEATS_EMPTY_TEXT = "No feats are available yet."
@@ -299,6 +307,74 @@ end
 local function GetRulesSV()
     return HARDCORE.InitRulesSaved()
 end
+
+local function GetCompletedFeatTitles()
+    local completed = {}
+    local rulesSV = GetRulesSV()
+    local enabled = rulesSV and rulesSV.enabled
+    if not enabled then
+        return completed
+    end
+
+    for _, feat in ipairs(GetSortedFeats()) do
+        if feat.ruleId and enabled[feat.ruleId] == true then
+            completed[#completed + 1] = feat.title
+        end
+    end
+
+    return completed
+end
+
+local function NormalizeHealthPct(value)
+    value = tonumber(value) or 100
+    if value < 0 then
+        return 0
+    end
+    if value > 100 then
+        return 100
+    end
+    return math.floor(value + 0.5)
+end
+
+local function GetChallengeLowestHealthPct()
+    local sv = HARDCORE.saved
+    if not sv then
+        return 100
+    end
+
+    local value = sv.minHealthPct
+    if value == nil then
+        value = sv.persistedMinHealthPct
+    end
+
+    return NormalizeHealthPct(value)
+end
+
+local function FormatCompletedFeatsText(completedFeats)
+    if #completedFeats == 0 then
+        return "No optional feats completed."
+    end
+
+    local lines = {}
+    local line = ""
+
+    for _, title in ipairs(completedFeats) do
+        local candidate = line == "" and title or (line .. ", " .. title)
+        if line ~= "" and string.len(candidate) > 68 then
+            lines[#lines + 1] = line
+            line = title
+        else
+            line = candidate
+        end
+    end
+
+    if line ~= "" then
+        lines[#lines + 1] = line
+    end
+
+    return table.concat(lines, "\n")
+end
+
 function HARDCORE.SetDifficultySliderEnabled(enabled)
     HARDCORE._difficultyControlsEnabled = enabled and true or false
 
@@ -2249,6 +2325,26 @@ local function PlayCongratulationsWindowSounds()
     zo_callLater(function() PlaySound(SOUNDS.OBJECTIVE_COMPLETED) end, 900)
 end
 
+local function RefreshCongratulationsWindowSummary(win)
+    if not win then
+        return
+    end
+
+    local completedFeats = GetCompletedFeatTitles()
+    local completedCount = #completedFeats
+
+    if win.lowestHealthValue then
+        win.lowestHealthValue:SetText(string.format("%d%%", GetChallengeLowestHealthPct()))
+    end
+    if win.featsCompletedValue then
+        win.featsCompletedValue:SetText(tostring(completedCount))
+    end
+    if win.featsCompletedList then
+        win.featsCompletedList:SetText(FormatCompletedFeatsText(completedFeats))
+        win.featsCompletedList:SetColor((completedCount > 0 and COLOR.gray or COLOR.dim):UnpackRGBA())
+    end
+end
+
 local function ConfigureCongratulationsWindow(win, previewMode)
     if not (win and win.actionButton and win.closeButton) then
         return
@@ -2286,6 +2382,7 @@ end
 
 function HARDCORE.ShowCongratulationsWindow(previewMode)
     if HARDCORE.congratsWindow then
+        RefreshCongratulationsWindowSummary(HARDCORE.congratsWindow)
         ConfigureCongratulationsWindow(HARDCORE.congratsWindow, previewMode == true)
         HARDCORE.congratsWindow:SetHidden(false)
         SetGameCameraUIMode(true)
@@ -2301,7 +2398,7 @@ function HARDCORE.ShowCongratulationsWindow(previewMode)
     win:SetClampedToScreen(true)
     win:SetResizeHandleSize(0)
     win:SetAnchor(CENTER, GuiRoot, CENTER, 0, -40)
-    win:SetDimensions(750, 480)
+    win:SetDimensions(780, 560)
 
     local frame = wm:CreateControl(nil, win, CT_BACKDROP)
     frame:SetAnchorFill()
@@ -2368,14 +2465,68 @@ function HARDCORE.ShowCongratulationsWindow(previewMode)
     divider:SetAlpha(0.55)
 
     local subTitle = wm:CreateControl(nil, inner, CT_LABEL)
-    subTitle:SetAnchor(TOP, divider, BOTTOM, 0, 20)
+    subTitle:SetAnchor(TOP, divider, BOTTOM, 0, 18)
     subTitle:SetFont("$(MEDIUM_FONT)|24|soft-shadow-thin")
     subTitle:SetHorizontalAlignment(TEXT_ALIGN_CENTER)
     subTitle:SetColor(COLOR.white:UnpackRGBA())
     subTitle:SetText("You have reached Level 50\nand completed the Hardcore Challenge!")
 
+    local summary = wm:CreateControl("HARDCORE_CongratsSummary", inner, CT_BACKDROP)
+    summary:SetAnchor(TOP, subTitle, BOTTOM, 0, 24)
+    summary:SetDimensions(640, 180)
+    summary:SetCenterColor(0.02, 0.015, 0.01, 0.62)
+    summary:SetEdgeTexture("/esoui/art/chatwindow/chat_bg_edge.dds", 32, 4, 4)
+    summary:SetEdgeColor(0.9, 0.72, 0.34, 0.38)
+
+    local summaryTitle = wm:CreateControl(nil, summary, CT_LABEL)
+    summaryTitle:SetAnchor(TOP, summary, TOP, 0, 12)
+    summaryTitle:SetDimensions(600, 24)
+    summaryTitle:SetFont("$(BOLD_FONT)|18|soft-shadow-thick")
+    summaryTitle:SetHorizontalAlignment(TEXT_ALIGN_CENTER)
+    summaryTitle:SetColor(COLOR.gold:UnpackRGBA())
+    summaryTitle:SetText("Run Summary")
+
+    local lowestHealthLabel = wm:CreateControl(nil, summary, CT_LABEL)
+    lowestHealthLabel:SetAnchor(TOPLEFT, summary, TOPLEFT, 54, 50)
+    lowestHealthLabel:SetDimensions(220, 22)
+    lowestHealthLabel:SetFont("$(MEDIUM_FONT)|15|soft-shadow-thin")
+    lowestHealthLabel:SetHorizontalAlignment(TEXT_ALIGN_CENTER)
+    lowestHealthLabel:SetColor(COLOR.dim:UnpackRGBA())
+    lowestHealthLabel:SetText("Lowest Health")
+
+    local lowestHealthValue = wm:CreateControl(nil, summary, CT_LABEL)
+    win.lowestHealthValue = lowestHealthValue
+    lowestHealthValue:SetAnchor(TOP, lowestHealthLabel, BOTTOM, 0, -2)
+    lowestHealthValue:SetDimensions(220, 38)
+    lowestHealthValue:SetFont("$(BOLD_FONT)|32|soft-shadow-thick")
+    lowestHealthValue:SetHorizontalAlignment(TEXT_ALIGN_CENTER)
+    lowestHealthValue:SetColor(COLOR.white:UnpackRGBA())
+
+    local featsCompletedLabel = wm:CreateControl(nil, summary, CT_LABEL)
+    featsCompletedLabel:SetAnchor(TOPRIGHT, summary, TOPRIGHT, -54, 50)
+    featsCompletedLabel:SetDimensions(220, 22)
+    featsCompletedLabel:SetFont("$(MEDIUM_FONT)|15|soft-shadow-thin")
+    featsCompletedLabel:SetHorizontalAlignment(TEXT_ALIGN_CENTER)
+    featsCompletedLabel:SetColor(COLOR.dim:UnpackRGBA())
+    featsCompletedLabel:SetText("Feats Completed")
+
+    local featsCompletedValue = wm:CreateControl(nil, summary, CT_LABEL)
+    win.featsCompletedValue = featsCompletedValue
+    featsCompletedValue:SetAnchor(TOP, featsCompletedLabel, BOTTOM, 0, -2)
+    featsCompletedValue:SetDimensions(220, 38)
+    featsCompletedValue:SetFont("$(BOLD_FONT)|32|soft-shadow-thick")
+    featsCompletedValue:SetHorizontalAlignment(TEXT_ALIGN_CENTER)
+    featsCompletedValue:SetColor(COLOR.white:UnpackRGBA())
+
+    local featList = wm:CreateControl(nil, summary, CT_LABEL)
+    win.featsCompletedList = featList
+    featList:SetAnchor(TOP, summary, TOP, 0, 116)
+    featList:SetDimensions(580, 54)
+    featList:SetFont("$(MEDIUM_FONT)|14|soft-shadow-thin")
+    featList:SetHorizontalAlignment(TEXT_ALIGN_CENTER)
+
     local desc = wm:CreateControl(nil, inner, CT_LABEL)
-    desc:SetAnchor(TOP, subTitle, BOTTOM, 0, 45)
+    desc:SetAnchor(TOP, summary, BOTTOM, 0, 18)
     desc:SetFont("$(MEDIUM_FONT)|20")
     desc:SetHorizontalAlignment(TEXT_ALIGN_CENTER)
     desc:SetColor(COLOR.gray:UnpackRGBA())
@@ -2390,6 +2541,7 @@ function HARDCORE.ShowCongratulationsWindow(previewMode)
     win.closeButton = close
     close:SetAnchor(TOPRIGHT, win, TOPRIGHT, -18, 14)
 
+    RefreshCongratulationsWindowSummary(win)
     ConfigureCongratulationsWindow(win, previewMode == true)
     SetGameCameraUIMode(true)
     PlayCongratulationsWindowSounds()

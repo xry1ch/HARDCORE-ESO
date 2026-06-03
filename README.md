@@ -26,6 +26,7 @@ Available feats:
 - **Need of Blood**: Every ten minutes, the blood demand wakes. Only kills during its twenty-second window count; fail to feed it and the run ends.
 - **Mandatory Bath Time**: Every fifteen minutes, the bath bell tolls. Enter water and soak for ten seconds, or the short grace countdown ends the run.
 - **Silent Pilgrim**: You have taken a vow of silence: no talking to NPCs, no quest chatter, no turn-ins. Dialogue is closed before a single word leaves your mouth.
+- **No Map**: The road must be remembered, not drawn.
 
 ## The Rules
 

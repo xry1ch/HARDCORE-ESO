@@ -19,6 +19,7 @@ feats/Feat_Nudist.lua
 feats/Feat_NeedOfBlood.lua
 feats/Feat_NoPotions.lua
 feats/Feat_NoNpcTalk.lua
+feats/Feat_NoMap.lua
 rules/Rule_NoMail.lua
 rules/Rule_NoCrafting.lua
 rules/Rule_LimitedGear.lua
