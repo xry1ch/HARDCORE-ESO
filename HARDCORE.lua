@@ -73,7 +73,7 @@ local RULES = {{
 }, {
     text = "Humble Gear Only",
     icon = RULE_ICONS.gear,
-    tip = "You may arm yourself only with simple gear of white or green quality.",
+    tip = "You may arm yourself only with simple gear of white, green, or blue quality.",
     ruleId = "LimitedGear"
 }, {
     text = "Two-Set Limit",
@@ -609,9 +609,9 @@ local function AddHardcoreMainMenuButton()
 
     local data = {
         descriptor = "HARDCORE_MAINMENU",
-        normal = "/esoui/art/journal/journal_tabicon_achievements_up.dds",
-        pressed = "/esoui/art/journal/journal_tabicon_achievements_down.dds",
-        highlight = "/esoui/art/journal/journal_tabicon_achievements_over.dds",
+        normal = "/art/fx/texture/modelfxtextures/blurred_skull.dds",
+        pressed = "/art/fx/texture/modelfxtextures/blurred_skull.dds",
+        highlight = "/art/fx/texture/modelfxtextures/blurred_skull.dds",
         categoryName = "HARDCORE",
         callback = function()
             if not HARDCORE then
@@ -1444,6 +1444,30 @@ function HARDCORE.ToggleIntro(playSound)
     end
 end
 
+local function OpenHardcoreUI()
+    if HARDCORE.saved and HARDCORE.saved.isActive and GetUnitLevel("player") >= 50 then
+        HARDCORE.ShowCongratulationsWindow()
+        return
+    end
+
+    if HARDCORE.saved and HARDCORE.saved.hasDied then
+        ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, "HARDCORE: Challenge failed. You cannot reactivate it.")
+    end
+
+    if not HARDCORE.window then
+        CreateIntroWindow()
+    end
+    HARDCORE.window:SetHidden(false)
+    if HARDCORE.fadeIn then
+        HARDCORE.fadeIn()
+    end
+    if HARDCORE.UpdateActionButton then
+        HARDCORE.UpdateActionButton()
+    end
+    SetGameCameraUIMode(true)
+    PlaySound(SOUNDS.SKILL_XP_DARK_FISSURE_CLOSED)
+end
+
 local function RegisterSlash()
     local function PrintDebugHelp()
         d("HARDCORE debug commands:")
@@ -1656,35 +1680,18 @@ local function RegisterSlash()
         HARDCORE.DebugTrailRationsCommand(action or "help", tokens[4], tokens[5])
     end
 
-    SLASH_COMMANDS["/hc"] = function(args)
+    local function ShowHardcoreWindow(args)
         args = args or ""
         if string.match(string.lower(args), "^%s*debug") then
             RunDebugCommand(args)
             return
         end
 
-        if HARDCORE.saved and HARDCORE.saved.isActive and GetUnitLevel("player") >= 50 then
-            HARDCORE.ShowCongratulationsWindow()
-            return
-        end
-
-        if HARDCORE.saved and HARDCORE.saved.hasDied then
-            ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, "HARDCORE: Challenge failed. You cannot reactivate it.")
-        end
-
-        if not HARDCORE.window then
-            CreateIntroWindow()
-        end
-        HARDCORE.window:SetHidden(false)
-        if HARDCORE.fadeIn then
-            HARDCORE.fadeIn()
-        end
-        if HARDCORE.UpdateActionButton then
-            HARDCORE.UpdateActionButton()
-        end
-        SetGameCameraUIMode(true)
-        PlaySound(SOUNDS.SKILL_XP_DARK_FISSURE_CLOSED)
+        OpenHardcoreUI()
     end
+
+    SLASH_COMMANDS["/hc"] = ShowHardcoreWindow
+    SLASH_COMMANDS["/hardcore"] = ShowHardcoreWindow
 end
 
 local function OnAddOnLoaded(event, addonName)
@@ -1832,6 +1839,12 @@ local function OnAddOnLoaded(event, addonName)
         }
         lam:RegisterAddonPanel("HARDCORE_LAM", panelData)
         lam:RegisterOptionControls("HARDCORE_LAM", {{
+            type = "button",
+            name = "Open HARDCORE UI",
+            tooltip = "Open the main HARDCORE challenge window.",
+            width = "full",
+            func = OpenHardcoreUI
+        }, {
             type = "checkbox",
             name = "Debug mode",
             tooltip = "Enable /hc debug commands for testing addon behavior.",

@@ -19,7 +19,7 @@ end
 local function alertOnce()
     local now = GetFrameTimeMilliseconds()
     if now - Rule._lastAlert > 1500 then
-        ZO_Alert(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, "HARDCORE: Only white/green gear allowed.")
+        ZO_Alert(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, "HARDCORE: Only white/green/blue gear allowed.")
         Rule._lastAlert = now
     end
 end
@@ -28,16 +28,16 @@ local WORN_SLOTS = {EQUIP_SLOT_HEAD, EQUIP_SLOT_SHOULDERS, EQUIP_SLOT_CHEST, EQU
                     EQUIP_SLOT_LEGS, EQUIP_SLOT_FEET, EQUIP_SLOT_NECK, EQUIP_SLOT_RING1, EQUIP_SLOT_RING2,
                     EQUIP_SLOT_MAIN_HAND, EQUIP_SLOT_OFF_HAND, EQUIP_SLOT_BACKUP_MAIN, EQUIP_SLOT_BACKUP_OFF}
 
-local function isAboveGreenEquipped(slot)
+local function isAboveBlueEquipped(slot)
     local link = GetItemLink(BAG_WORN, slot)
     if not link or link == "" then
         return false
     end
     local q = GetItemLinkFunctionalQuality(link)
-    return q and q > ITEM_FUNCTIONAL_QUALITY_MAGIC
+    return q and q > ITEM_FUNCTIONAL_QUALITY_ARCANE
 end
 
-local function enforceMaxGreen()
+local function enforceMaxBlue()
     if not Rule.active then
         return
     end
@@ -47,7 +47,7 @@ local function enforceMaxGreen()
 
     local changed = false
     for _, slot in ipairs(WORN_SLOTS) do
-        if isAboveGreenEquipped(slot) then
+        if isAboveBlueEquipped(slot) then
             RequestUnequipItem(BAG_WORN, slot)
             changed = true
         end
@@ -65,14 +65,14 @@ local function onInventoryChange(_, bagId, slotIndex, isNewItem, itemSoundCatego
     if bagId ~= BAG_WORN then
         return
     end
-    zo_callLater(enforceMaxGreen, 50)
+    zo_callLater(enforceMaxBlue, 50)
 end
 
 local function onWeaponSwap()
     if not Rule.active then
         return
     end
-    zo_callLater(enforceMaxGreen, 50)
+    zo_callLater(enforceMaxBlue, 50)
 end
 
 local function Install()
@@ -81,11 +81,11 @@ local function Install()
     end
 
     EVENT_MANAGER:RegisterForEvent(NS .. "_ACTIVATED", EVENT_PLAYER_ACTIVATED, function()
-        zo_callLater(enforceMaxGreen, 200)
+        zo_callLater(enforceMaxBlue, 200)
     end)
 
     EVENT_MANAGER:RegisterForEvent(NS .. "_LEVEL", EVENT_LEVEL_UPDATE, function()
-        zo_callLater(enforceMaxGreen, 200)
+        zo_callLater(enforceMaxBlue, 200)
     end)
     EVENT_MANAGER:AddFilterForEvent(NS .. "_LEVEL", EVENT_LEVEL_UPDATE, REGISTER_FILTER_UNIT_TAG, "player")
 
@@ -96,7 +96,7 @@ local function Install()
 
     EVENT_MANAGER:RegisterForEvent(NS .. "_OOC", EVENT_PLAYER_COMBAT_STATE, function(_, inCombat)
         if not inCombat then
-            zo_callLater(enforceMaxGreen, 120)
+            zo_callLater(enforceMaxBlue, 120)
         end
     end)
 
@@ -106,7 +106,7 @@ end
 function Rule:OnEnable()
     self.active = true
     Install()
-    zo_callLater(enforceMaxGreen, 100)
+    zo_callLater(enforceMaxBlue, 100)
 end
 
 function Rule:OnDisable()
