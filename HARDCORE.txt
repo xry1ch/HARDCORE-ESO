@@ -13,6 +13,7 @@ feats/Feat_SwimDiscipline.lua
 feats/Feat_LockpickNerves.lua
 feats/Feat_Barbarian.lua
 feats/Feat_HandsFree.lua
+feats/Feat_SelfMade.lua
 feats/Feat_NoSwimming.lua
 feats/Feat_Nudist.lua
 feats/Feat_NeedOfBlood.lua

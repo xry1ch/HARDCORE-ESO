@@ -54,6 +54,7 @@ local RULE_ICONS = {
     lockpick = "/esoui/art/lockpicking/lock_pick.dds",
     barbarian = "/esoui/art/inventory/inventory_tabicon_2handed_up.dds",
     handsfree = "/esoui/art/inventory/inventory_tabicon_weapons_up.dds",
+    selfmade = "/esoui/art/tradinghouse/gamepad/gp_tradinghouse_materials_trait_armortrait.dds",
     noswimming = "/esoui/art/inventory/inventory_tabicon_craftbag_fishing_up.dds",
     nudist = "/esoui/art/inventory/inventory_tabicon_armor_up.dds",
     blood = "/esoui/art/lfg/lfg_dps_up_64.dds",
@@ -194,6 +195,12 @@ local FEATS = {{
     difficulty = 4,
     ruleId = "HandsFree"
 }, {
+    title = "Self Made",
+    flavor = "Only gear crafted by your own hands may stay equipped. The forge, clothier, woodworking, and jewelry stations open just enough to make your kit.",
+    icon = RULE_ICONS.selfmade,
+    difficulty = 5,
+    ruleId = "SelfMade"
+}, {
     title = "No Swimming",
     flavor = "Deep water gives you fifteen seconds of mercy. Keep swimming after the timer runs dry and the challenge ends.",
     icon = RULE_ICONS.noswimming,
@@ -231,6 +238,7 @@ local FEAT_RULE_IDS = {
     LockpickNerves = true,
     Barbarian = true,
     HandsFree = true,
+    SelfMade = true,
     NoSwimming = true,
     Nudist = true,
     NeedOfBlood = true,
@@ -1516,6 +1524,8 @@ local function RegisterSlash()
         d("/hc debug barbarian enforce")
         d("/hc debug handsfree status")
         d("/hc debug handsfree enforce")
+        d("/hc debug selfmade status")
+        d("/hc debug selfmade enforce")
     end
 
     local function RunDebugCommand(args)
@@ -1562,6 +1572,9 @@ local function RegisterSlash()
             end
             if HARDCORE.DebugHandsFreeStatus then
                 HARDCORE.DebugHandsFreeStatus()
+            end
+            if HARDCORE.DebugSelfMadeStatus then
+                HARDCORE.DebugSelfMadeStatus()
             end
             return
         end
@@ -1672,6 +1685,15 @@ local function RegisterSlash()
                 return
             end
             HARDCORE.DebugHandsFreeCommand(action or "help")
+            return
+        end
+
+        if area == "selfmade" or area == "self" then
+            if not HARDCORE.DebugSelfMadeCommand then
+                d("HARDCORE: Self Made debug helpers are not loaded.")
+                return
+            end
+            HARDCORE.DebugSelfMadeCommand(action or "help")
             return
         end
 

@@ -20,6 +20,7 @@ Available feats:
 - **No Potions**: Drink a potion and the run ends. No emergency bottle, no alchemist's mercy.
 - **Barbarian**: Live by the great weapon: only two-handed axes, hammers, and swords may stay equipped. Head and chest stay bare; all other armor must be heavy.
 - **Nudist**: Armor slots must stay bare: no helm, chest, shoulders, gloves, belt, legs, or boots. Weapons and jewelry are still allowed.
+- **Self Made**: Only gear crafted by your own hands may stay equipped. Equipment-crafting stations are allowed for making your kit.
 - **Lockpick Nerves**: Each failed or broken pick leaves a panic mark for ten seconds. Three marks break your nerve and end the run; a clean lock steadies your hands.
 - **Hands Free**: Weapons are off the table. Improvise, punch, dodge, pray, or discover how persuasive empty hands can be.
 - **Need of Blood**: Every ten minutes, the blood demand wakes. Only kills during its twenty-second window count; fail to feed it and the run ends.

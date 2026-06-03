@@ -25,6 +25,11 @@ local CRAFTING_SCENES = {
     universalDeconstructionSceneGamepad = true
 }
 
+local function IsSelfMadeCraftingAllowed(craftSkill, craftMode)
+    return HARDCORE and HARDCORE.CanSelfMadeUseCraftingStation and
+        HARDCORE.CanSelfMadeUseCraftingStation(craftSkill, craftMode)
+end
+
 local function Announce()
     ZO_Alert(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, "HARDCORE: Only Alchemy and Cooking are allowed.")
 end
@@ -50,6 +55,9 @@ local function InstallHooks()
         if scene then
             scene:RegisterCallback("StateChange", function(_, newState)
                 if Rule.active and newState == SCENE_SHOWING then
+                    if IsSelfMadeCraftingAllowed(GetCraftingInteractionType(), GetCraftingInteractionMode()) then
+                        return
+                    end
                     Announce()
                     SCENE_MANAGER:HideCurrentScene()
                     CleanExit()
@@ -58,8 +66,11 @@ local function InstallHooks()
         end
     end
 
-    EVENT_MANAGER:RegisterForEvent(NS .. "_INTERACT", EVENT_CRAFTING_STATION_INTERACT, function(_, craftSkill)
+    EVENT_MANAGER:RegisterForEvent(NS .. "_INTERACT", EVENT_CRAFTING_STATION_INTERACT, function(_, craftSkill, _sameStation, craftMode)
         if not Rule.active then
+            return
+        end
+        if IsSelfMadeCraftingAllowed(craftSkill, craftMode) then
             return
         end
         if craftSkill ~= CRAFTING_TYPE_ALCHEMY and craftSkill ~= CRAFTING_TYPE_PROVISIONING then

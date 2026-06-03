@@ -90,6 +90,15 @@ All commands use the `/hc debug` prefix.
 | `/hc debug handsfree status` | Prints Hands Free status. |
 | `/hc debug handsfree enforce` | Runs Hands Free enforcement immediately. |
 
+## Self Made
+
+`self` is accepted as an alias for `selfmade`.
+
+| Command | Effect |
+| --- | --- |
+| `/hc debug selfmade status` | Prints Self Made status. |
+| `/hc debug selfmade enforce` | Runs Self Made enforcement immediately. |
+
 ## Current Gaps
 
 No slash debug handlers currently exist for:
