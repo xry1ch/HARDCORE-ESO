@@ -20,6 +20,7 @@ feats/Feat_NeedOfBlood.lua
 feats/Feat_NoPotions.lua
 feats/Feat_NoNpcTalk.lua
 feats/Feat_NoMap.lua
+feats/Feat_NoWayshrines.lua
 rules/Rule_NoMail.lua
 rules/Rule_NoCrafting.lua
 rules/Rule_LimitedGear.lua

@@ -19,6 +19,10 @@ local function IsHardcoreActive()
     return HARDCORE and HARDCORE.saved and HARDCORE.saved.isActive
 end
 
+local function IsWayshrineFastTravelInteraction()
+    return GetInteractionType() == INTERACTION_FAST_TRAVEL
+end
+
 local function AnnounceBlocked()
     local now = GetFrameTimeMilliseconds()
     if now - Rule._lastAlertMs > 1200 then
@@ -29,7 +33,7 @@ local function AnnounceBlocked()
 end
 
 local function ShouldBlockMap()
-    return Rule.active and IsHardcoreActive()
+    return Rule.active and IsHardcoreActive() and not IsWayshrineFastTravelInteraction()
 end
 
 local function HideWorldMap()

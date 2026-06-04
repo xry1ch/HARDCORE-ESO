@@ -31,6 +31,10 @@ local function IsAtWayshrine()
     return GetInteractionType() == INTERACTION_FAST_TRAVEL
 end
 
+local function IsNoWayshrinesActive()
+    return HARDCORE and HARDCORE.IsNoWayshrinesFeatActive and HARDCORE.IsNoWayshrinesFeatActive()
+end
+
 local function BlockWhenActive()
     if Rule.active then
         AlertBlocked()
@@ -44,6 +48,7 @@ local function InstallHooks()
 
     ZO_PreHook("FastTravelToNode", function()
         if not Rule.active then return false end
+        if IsNoWayshrinesActive() then return false end
         if not IsAtWayshrine() then
             AlertBlocked()
             return true

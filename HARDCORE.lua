@@ -237,6 +237,12 @@ local FEATS = {{
     icon = RULE_ICONS.map,
     difficulty = 3,
     ruleId = "NoMap"
+}, {
+    title = "No Wayshrines",
+    flavor = "Wayshrines are forbidden. No recall, no shrine-to-shrine travel, and no exception for Bound Wayshrines.",
+    icon = RULE_ICONS.tp,
+    difficulty = 1,
+    ruleId = "NoWayshrines"
 }}
 local FEAT_RULE_IDS = {
     TrailRations = true,
@@ -251,7 +257,8 @@ local FEAT_RULE_IDS = {
     NeedOfBlood = true,
     NoPotions = true,
     NoNpcTalk = true,
-    NoMap = true
+    NoMap = true,
+    NoWayshrines = true
 }
 
 local FEATS_EMPTY_TEXT = "No feats are available yet."
