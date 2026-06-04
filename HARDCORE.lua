@@ -707,6 +707,7 @@ function HARDCORE.BeginChallengeRun()
         return
     end
     sv.isActive = true
+    sv.hasSeenCongrats = false
     sv.minHealthPct = 100
     if not sv.persistedMinHealthPct then
         sv.persistedMinHealthPct = 100
@@ -824,7 +825,7 @@ local function AddHardcoreMainMenuButton()
             local bar = MAIN_MENU_KEYBOARD and MAIN_MENU_KEYBOARD.categoryBar
 
             if HARDCORE.saved and HARDCORE.saved.isActive then
-                if GetUnitLevel("player") >= 50 then
+                if GetUnitLevel("player") >= 50 and not HARDCORE.saved.hasSeenCongrats then
                     HARDCORE.ShowCongratulationsWindow()
                     if bar then ZO_MenuBar_ClearSelection(bar) end
                 else
@@ -1528,14 +1529,17 @@ local function CreateIntroWindow()
         end
 
         if isActive then
+            local isCompletedRun = HARDCORE.saved.hasSeenCongrats and GetUnitLevel("player") >= 50
             btn:SetEnabled(true)
             btn:SetState(BSTATE_NORMAL, false)
-            btn:SetText("Surrender")
+            btn:SetText(isCompletedRun and "End Challenge" or "Surrender")
             if HARDCORE.subtitle then
                 HARDCORE.subtitle:SetText("")
             end
             btn:SetHandler("OnMouseEnter", function()
-                ShowTip(btn, "End the hardcore challenge and deactivate the rules.")
+                ShowTip(btn, isCompletedRun and
+                    "End the completed hardcore challenge and return to normal." or
+                    "End the hardcore challenge and deactivate the rules.")
             end)
             btn:SetHandler("OnMouseExit", HideTip)
             btn:SetHandler("OnClicked", function()
@@ -1547,6 +1551,8 @@ local function CreateIntroWindow()
                     HARDCORE.subtitle:SetText("Hardcore Mode is inactive. You can re-enter anytime.")
                 end
                 ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.QUEST_ACCEPTED,
+                    isCompletedRun and
+                    "HARDCORE: Challenge ended. Settings restored." or
                     "HARDCORE: Challenge surrendered. Settings restored.")
                 HARDCORE.UpdateActionButton()
                 -- Reload UI to apply restored settings
@@ -1676,7 +1682,7 @@ function HARDCORE.ToggleIntro(playSound)
 end
 
 local function OpenHardcoreUI()
-    if HARDCORE.saved and HARDCORE.saved.isActive and GetUnitLevel("player") >= 50 then
+    if HARDCORE.saved and HARDCORE.saved.isActive and GetUnitLevel("player") >= 50 and not HARDCORE.saved.hasSeenCongrats then
         HARDCORE.ShowCongratulationsWindow()
         return
     end
@@ -2495,12 +2501,20 @@ local function ConfigureCongratulationsWindow(win, previewMode)
         return
     end
 
+    local continueButton = win.continueButton
+
     if previewMode then
         win.actionButton:SetText("Close Preview")
+        win.actionButton:ClearAnchors()
+        win.actionButton:SetAnchor(BOTTOM, win, BOTTOM, 0, -35)
         win.actionButton:SetHandler("OnClicked", function()
             win:SetHidden(true)
             SetGameCameraUIMode(false)
         end)
+        if continueButton then
+            continueButton:SetHidden(true)
+            continueButton:SetHandler("OnClicked", nil)
+        end
         win.closeButton:SetHandler("OnClicked", function()
             win:SetHidden(true)
             SetGameCameraUIMode(false)
@@ -2508,7 +2522,9 @@ local function ConfigureCongratulationsWindow(win, previewMode)
         return
     end
 
-    win.actionButton:SetText("End Challenge & Continue")
+    win.actionButton:ClearAnchors()
+    win.actionButton:SetAnchor(BOTTOM, win, BOTTOM, -145, -35)
+    win.actionButton:SetText("End Challenge")
     win.actionButton:SetHandler("OnClicked", function()
         HARDCORE.saved.hasSeenCongrats = true
         HARDCORE.SurrenderChallenge()
@@ -2518,8 +2534,21 @@ local function ConfigureCongratulationsWindow(win, previewMode)
         ZO_Alert(UI_ALERT_CATEGORY_ALERT, SOUNDS.QUEST_ACCEPTED, "Hardcore Challenge Completed!")
         zo_callLater(function() ReloadUI() end, 500)
     end)
+
+    if continueButton then
+        continueButton:SetHidden(false)
+        continueButton:SetText("Continue Challenge")
+        continueButton:SetHandler("OnClicked", function()
+            HARDCORE.saved.hasSeenCongrats = true
+            win:SetHidden(true)
+            SetGameCameraUIMode(false)
+            if HARDCORE.UpdateActionButton then
+                HARDCORE.UpdateActionButton()
+            end
+        end)
+    end
+
     win.closeButton:SetHandler("OnClicked", function()
-        HARDCORE.saved.hasSeenCongrats = true
         win:SetHidden(true)
         SetGameCameraUIMode(false)
     end)
@@ -2699,12 +2728,18 @@ function HARDCORE.ShowCongratulationsWindow(previewMode)
     desc:SetFont("$(MEDIUM_FONT)|20")
     desc:SetHorizontalAlignment(TEXT_ALIGN_CENTER)
     desc:SetColor(COLOR.gray:UnpackRGBA())
-    desc:SetText("Your trial is over. You may now choose to continue\nyour journey as a normal adventurer.")
+    desc:SetText("Your trial is complete. Keep the rules active,\nor end the challenge and return to normal.")
 
     local btn = wm:CreateControlFromVirtual("HARDCORE_CongratsActionButton", win, "ZO_DefaultButton")
     win.actionButton = btn
     btn:SetAnchor(BOTTOM, win, BOTTOM, 0, -35)
     btn:SetDimensions(280, 44)
+
+    local continueButton = wm:CreateControlFromVirtual("HARDCORE_CongratsContinueButton", win, "ZO_DefaultButton")
+    win.continueButton = continueButton
+    continueButton:SetAnchor(BOTTOM, win, BOTTOM, 145, -35)
+    continueButton:SetDimensions(260, 44)
+    continueButton:SetHidden(true)
 
     local close = wm:CreateControlFromVirtual("HARDCORE_CongratsClose", win, "ZO_CloseButton")
     win.closeButton = close
