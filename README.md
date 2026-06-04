@@ -10,7 +10,7 @@ To keep the challenge fair and functional, do not use custom UI health bars such
 
 ## Feats System
 
-Feats are optional, permanent challenges that can be accepted during a Hardcore run. Once accepted, a feat cannot be deactivated for that run. Each feat has its own difficulty rating and adds a specific survival constraint or failure condition.
+Feats are optional, permanent challenges that can be accepted during a Hardcore run. Once accepted, a feat cannot be deactivated for that run. Each feat has its own difficulty rating and adds a specific survival constraint, prevention rule, or failure condition.
 
 Available feats:
 
@@ -19,7 +19,10 @@ Available feats:
 - **No Swimming**: Deep water gives you fifteen seconds of mercy. Keep swimming after the timer runs dry and the challenge ends.
 - **No Potions**: Drink a potion and the run ends. No emergency bottle, no alchemist's mercy.
 - **Barbarian**: Live by the great weapon: only two-handed axes, hammers, and swords may stay equipped. Head and chest stay bare; all other armor must be heavy.
+- **Barefoot Pilgrim**: Boots are a comfort for softer roads. Footwear is removed whenever the vow is active.
 - **Nudist**: Armor slots must stay bare: no helm, chest, shoulders, gloves, belt, legs, or boots. Weapons and jewelry are still allowed.
+- **No Trinkets**: Necklaces and rings are stripped away. Survival has no room for lucky charms.
+- **Single Armor Discipline**: The first armor weight found on your body becomes your discipline. Other armor weights are removed. Barbarian blocks this feat if accepted first; if this feat is accepted first, Barbarian requires Heavy discipline.
 - **Self Made**: Only gear crafted by your own hands may stay equipped. Equipment-crafting stations are allowed for making your kit.
 - **Lockpick Nerves**: Each failed or broken pick leaves a panic mark for ten seconds. Three marks break your nerve and end the run; a clean lock steadies your hands.
 - **Hands Free**: Weapons are off the table. Improvise, punch, dodge, pray, or discover how persuasive empty hands can be.
@@ -27,6 +30,7 @@ Available feats:
 - **Mandatory Bath Time**: Every fifteen minutes, the bath bell tolls. Enter water and soak for ten seconds, or the short grace countdown ends the run.
 - **Silent Pilgrim**: You have taken a vow of silence: no talking to NPCs, no quest chatter, no turn-ins. Dialogue is closed before a single word leaves your mouth.
 - **No Map**: The road must be remembered, not drawn.
+- **No Wayshrines**: No wayshrines, no recall, no shortcuts. Travel on foot, by mount, or not at all.
 
 ## The Rules
 

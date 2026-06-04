@@ -53,14 +53,17 @@ local RULE_ICONS = {
     swim = "/esoui/art/inventory/inventory_tabicon_craftbag_fishing_up.dds",
     lockpick = "/esoui/art/lockpicking/lock_pick.dds",
     barbarian = "/esoui/art/inventory/inventory_tabicon_2handed_up.dds",
+    barefoot = "/esoui/art/tradinghouse/tradinghouse_apparel_feet_up.dds",
     handsfree = "/esoui/art/inventory/inventory_tabicon_weapons_up.dds",
     selfmade = "/esoui/art/tradinghouse/gamepad/gp_tradinghouse_materials_trait_armortrait.dds",
     noswimming = "/esoui/art/inventory/inventory_tabicon_craftbag_fishing_up.dds",
     nudist = "/esoui/art/inventory/inventory_tabicon_armor_up.dds",
     blood = "/esoui/art/lfg/lfg_dps_up_64.dds",
     potions = "/esoui/art/tradinghouse/tradinghouse_potions_potionsolvent_up.dds",
+    trinkets = "/esoui/art/tradinghouse/tradinghouse_apparel_accessories_ring_up.dds",
     npctalk = "EsoUI/Art/MainMenu/menuBar_social_up.dds",
-    map = "/esoui/art/mainmenu/menubar_map_up.dds"
+    map = "/esoui/art/mainmenu/menubar_map_up.dds",
+    armorDiscipline = "/esoui/art/crafting/smithing_tabicon_armorset_up.dds"
 }
 
 local RULES = {{
@@ -190,6 +193,12 @@ local FEATS = {{
     difficulty = 3,
     ruleId = "Barbarian"
 }, {
+    title = "Barefoot Pilgrim",
+    flavor = "Boots are a comfort for softer roads. Footwear is removed whenever the vow is active.",
+    icon = RULE_ICONS.barefoot,
+    difficulty = 1,
+    ruleId = "BarefootPilgrim"
+}, {
     title = "Hands Free",
     flavor = "Weapons are off the table. Improvise, punch, dodge, pray, or discover how persuasive empty hands can be.",
     icon = RULE_ICONS.handsfree,
@@ -226,6 +235,12 @@ local FEATS = {{
     difficulty = 2,
     ruleId = "NoPotions"
 }, {
+    title = "No Trinkets",
+    flavor = "Necklaces and rings are stripped away. Survival has no room for lucky charms.",
+    icon = RULE_ICONS.trinkets,
+    difficulty = 2,
+    ruleId = "NoTrinkets"
+}, {
     title = "Silent Pilgrim",
     flavor = "You have taken a vow of silence: no talking to NPCs, no quest chatter, no turn-ins. Dialogue is closed before a single word leaves your mouth.",
     icon = RULE_ICONS.npctalk,
@@ -239,10 +254,16 @@ local FEATS = {{
     ruleId = "NoMap"
 }, {
     title = "No Wayshrines",
-    flavor = "Wayshrines are forbidden. No recall, no shrine-to-shrine travel, and no exception for Bound Wayshrines.",
+    flavor = "No wayshrines, no recall, no shortcuts. Travel on foot, by mount, or not at all.",
     icon = RULE_ICONS.tp,
     difficulty = 1,
     ruleId = "NoWayshrines"
+}, {
+    title = "Single Armor Discipline",
+    flavor = "The first armor weight found on your body becomes your discipline. Other armor weights are removed.",
+    icon = RULE_ICONS.armorDiscipline,
+    difficulty = 3,
+    ruleId = "SingleArmorDiscipline"
 }}
 local FEAT_RULE_IDS = {
     TrailRations = true,
@@ -250,15 +271,18 @@ local FEAT_RULE_IDS = {
     SwimDiscipline = true,
     LockpickNerves = true,
     Barbarian = true,
+    BarefootPilgrim = true,
     HandsFree = true,
     SelfMade = true,
     NoSwimming = true,
     Nudist = true,
     NeedOfBlood = true,
     NoPotions = true,
+    NoTrinkets = true,
     NoNpcTalk = true,
     NoMap = true,
-    NoWayshrines = true
+    NoWayshrines = true,
+    SingleArmorDiscipline = true
 }
 
 local FEATS_EMPTY_TEXT = "No feats are available yet."
@@ -330,6 +354,47 @@ local function GetCompletedFeatTitles()
     end
 
     return completed
+end
+
+local function GetArmorTypeName(armorType)
+    if armorType == ARMORTYPE_LIGHT then
+        return "Light"
+    elseif armorType == ARMORTYPE_MEDIUM then
+        return "Medium"
+    elseif armorType == ARMORTYPE_HEAVY then
+        return "Heavy"
+    end
+    return nil
+end
+
+local function IsFeatAccepted(ruleId)
+    local rulesSV = GetRulesSV()
+    return rulesSV and rulesSV.enabled and rulesSV.enabled[ruleId] == true
+end
+
+function HARDCORE.IsFeatAccepted(ruleId)
+    return IsFeatAccepted(ruleId)
+end
+
+function HARDCORE.RefreshFeatAcceptButtons()
+    for _, refresh in ipairs(HARDCORE._featAcceptRefreshers or {}) do
+        refresh()
+    end
+end
+
+local function GetFeatBlockedReason(ruleId)
+    if ruleId == "Barbarian" and IsFeatAccepted("SingleArmorDiscipline") and HARDCORE.GetSingleArmorDisciplineArmorType then
+        local armorType = HARDCORE.GetSingleArmorDisciplineArmorType()
+        if armorType and armorType ~= ARMORTYPE_HEAVY then
+            return "Blocked: Single Armor Discipline is bound to " .. GetArmorTypeName(armorType) .. " armor."
+        end
+    end
+
+    if ruleId == "SingleArmorDiscipline" and IsFeatAccepted("Barbarian") then
+        return "Blocked: Barbarian is already accepted."
+    end
+
+    return nil
 end
 
 local function NormalizeHealthPct(value)
@@ -1232,9 +1297,11 @@ local function CreateIntroWindow()
         end
         local function RefreshAcceptButton()
             local accepted = IsAccepted()
-            acceptButton:SetText(accepted and "Accepted" or "Accept")
-            acceptButton:SetEnabled(not accepted)
-            acceptButton:SetState(accepted and BSTATE_DISABLED or BSTATE_NORMAL, accepted)
+            local blockedReason = GetFeatBlockedReason(challenge.ruleId)
+            local blocked = not accepted and blockedReason ~= nil
+            acceptButton:SetText(accepted and "Accepted" or (blocked and "Blocked" or "Accept"))
+            acceptButton:SetEnabled(not accepted and not blocked)
+            acceptButton:SetState((accepted or blocked) and BSTATE_DISABLED or BSTATE_NORMAL, accepted or blocked)
         end
         table.insert(HARDCORE._featAcceptRefreshers, RefreshAcceptButton)
         RefreshAcceptButton()
@@ -1242,6 +1309,8 @@ local function CreateIntroWindow()
             titleLabel:SetColor(COLOR.gold:UnpackRGBA())
             if IsAccepted() then
                 ShowTip(acceptButton, "This optional challenge is active for the current hardcore run.")
+            elseif GetFeatBlockedReason(challenge.ruleId) then
+                ShowTip(acceptButton, GetFeatBlockedReason(challenge.ruleId))
             else
                 ShowTip(acceptButton, "Accept this optional challenge for the current hardcore run.")
             end
@@ -1254,18 +1323,32 @@ local function CreateIntroWindow()
             if not challenge.ruleId or IsAccepted() then
                 return
             end
+            local blockedReason = GetFeatBlockedReason(challenge.ruleId)
+            if blockedReason then
+                ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK,
+                    "HARDCORE: " .. blockedReason)
+                RefreshAcceptButton()
+                return
+            end
             if HARDCORE.RuleManager and HARDCORE.RuleManager.SetRuleEnabled then
                 HARDCORE.RuleManager:SetRuleEnabled(challenge.ruleId, true)
             else
                 GetRulesSV().enabled[challenge.ruleId] = true
             end
-            RefreshAcceptButton()
+            HARDCORE.RefreshFeatAcceptButtons()
             PlaySound(SOUNDS.QUEST_ACCEPTED)
             ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.QUEST_ACCEPTED,
                 "HARDCORE: " .. challenge.title .. " accepted.")
         end
         acceptButton:SetHandler("OnClicked", function()
             if not challenge.ruleId or IsAccepted() then
+                return
+            end
+            local blockedReason = GetFeatBlockedReason(challenge.ruleId)
+            if blockedReason then
+                ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK,
+                    "HARDCORE: " .. blockedReason)
+                RefreshAcceptButton()
                 return
             end
             if HARDCORE.saved and not HARDCORE.saved.hasSeenFeatPermanentWarning then

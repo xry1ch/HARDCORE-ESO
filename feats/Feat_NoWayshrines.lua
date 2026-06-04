@@ -7,7 +7,7 @@ local ICON_NO_WAYSHRINES = "/esoui/art/poi/poi_wayshrine_complete.dds"
 
 local Rule = {
     id = ID,
-    title = "No Wayshrines: fast travel is forbidden",
+    title = "No Wayshrines: no shortcuts",
     icon = ICON_NO_WAYSHRINES,
     defaultEnabled = false
 }
