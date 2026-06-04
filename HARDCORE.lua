@@ -63,7 +63,10 @@ local RULE_ICONS = {
     trinkets = "/esoui/art/tradinghouse/tradinghouse_apparel_accessories_ring_up.dds",
     npctalk = "EsoUI/Art/MainMenu/menuBar_social_up.dds",
     map = "/esoui/art/mainmenu/menubar_map_up.dds",
-    armorDiscipline = "/esoui/art/crafting/smithing_tabicon_armorset_up.dds"
+    armorDiscipline = "/esoui/art/crafting/smithing_tabicon_armorset_up.dds",
+    oathboundWeapon = "/esoui/art/crafting/smithing_tabicon_weaponset_up.dds",
+    scavengersPoverty = "/esoui/art/vendor/vendor_tabicon_sell_up.dds",
+    questlessExile = "/esoui/art/journal/journal_tabicon_quest_up.dds"
 }
 
 local RULES = {{
@@ -205,6 +208,12 @@ local FEATS = {{
     difficulty = 4,
     ruleId = "HandsFree"
 }, {
+    title = "Oathbound Weapon",
+    flavor = "The first weapon type found in your hands becomes your oath. Other weapon types are removed whenever they appear.",
+    icon = RULE_ICONS.oathboundWeapon,
+    difficulty = 5,
+    ruleId = "OathboundWeapon"
+}, {
     title = "Self Made",
     flavor = "Only gear crafted by your own hands may stay equipped. The forge, clothier, woodworking, and jewelry stations open just enough to make your kit.",
     icon = RULE_ICONS.selfmade,
@@ -241,6 +250,12 @@ local FEATS = {{
     difficulty = 2,
     ruleId = "NoTrinkets"
 }, {
+    title = "Scavenger's Poverty",
+    flavor = "Gold cannot soften exile. Vendors and fences are closed; buying, selling, buyback, junk selling, and laundering are blocked.",
+    icon = RULE_ICONS.scavengersPoverty,
+    difficulty = 5,
+    ruleId = "ScavengersPoverty"
+}, {
     title = "Silent Pilgrim",
     flavor = "You have taken a vow of silence: no talking to NPCs, no quest chatter, no turn-ins. Dialogue is closed before a single word leaves your mouth.",
     icon = RULE_ICONS.npctalk,
@@ -264,6 +279,12 @@ local FEATS = {{
     icon = RULE_ICONS.armorDiscipline,
     difficulty = 3,
     ruleId = "SingleArmorDiscipline"
+}, {
+    title = "Questless Exile",
+    flavor = "Abandonable quests are dropped. Offers and turn-ins are blocked. Main quests stay, but cannot advance.",
+    icon = RULE_ICONS.questlessExile,
+    difficulty = 5,
+    ruleId = "QuestlessExile"
 }}
 local FEAT_RULE_IDS = {
     TrailRations = true,
@@ -273,16 +294,19 @@ local FEAT_RULE_IDS = {
     Barbarian = true,
     BarefootPilgrim = true,
     HandsFree = true,
+    OathboundWeapon = true,
     SelfMade = true,
     NoSwimming = true,
     Nudist = true,
     NeedOfBlood = true,
     NoPotions = true,
     NoTrinkets = true,
+    ScavengersPoverty = true,
     NoNpcTalk = true,
     NoMap = true,
     NoWayshrines = true,
-    SingleArmorDiscipline = true
+    SingleArmorDiscipline = true,
+    QuestlessExile = true
 }
 
 local FEATS_EMPTY_TEXT = "No feats are available yet."

@@ -1,9 +1,9 @@
 ## Title: HARDCORE
 ## Author: |cFFFF00Wrynch|r
-## Version: 1.3.1
+## Version: 1.4.0
 ## APIVersion: 101049
 ## DependsOn: LibAddonMenu-2.0>=41
-## SavedVariables: HARDCORE_SV HARDCORE_Rules_SV HARDCORE_HUD_SV HARDCORE_HUD_BACKUP HARDCORE_AOE_SV HARDCORE_TRAIL_RATIONS_SV HARDCORE_ROAD_WEARINESS_SV HARDCORE_SWIM_DISCIPLINE_SV HARDCORE_LOCKPICK_NERVES_SV HARDCORE_NO_SWIMMING_SV HARDCORE_NEED_OF_BLOOD_SV HARDCORE_SINGLE_ARMOR_DISCIPLINE_SV
+## SavedVariables: HARDCORE_SV HARDCORE_Rules_SV HARDCORE_HUD_SV HARDCORE_HUD_BACKUP HARDCORE_AOE_SV HARDCORE_TRAIL_RATIONS_SV HARDCORE_ROAD_WEARINESS_SV HARDCORE_SWIM_DISCIPLINE_SV HARDCORE_LOCKPICK_NERVES_SV HARDCORE_NO_SWIMMING_SV HARDCORE_NEED_OF_BLOOD_SV HARDCORE_SINGLE_ARMOR_DISCIPLINE_SV HARDCORE_OATHBOUND_WEAPON_SV
 
 HARDCORE.lua
 RulesManager.lua
@@ -14,13 +14,16 @@ feats/Feat_LockpickNerves.lua
 feats/Feat_Barbarian.lua
 feats/Feat_BarefootPilgrim.lua
 feats/Feat_HandsFree.lua
+feats/Feat_OathboundWeapon.lua
 feats/Feat_SelfMade.lua
 feats/Feat_NoSwimming.lua
 feats/Feat_Nudist.lua
 feats/Feat_NeedOfBlood.lua
 feats/Feat_NoPotions.lua
 feats/Feat_NoTrinkets.lua
+feats/Feat_ScavengersPoverty.lua
 feats/Feat_NoNpcTalk.lua
+feats/Feat_QuestlessExile.lua
 feats/Feat_NoMap.lua
 feats/Feat_NoWayshrines.lua
 feats/Feat_SingleArmorDiscipline.lua

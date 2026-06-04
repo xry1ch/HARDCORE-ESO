@@ -23,6 +23,9 @@ Available feats:
 - **Nudist**: Armor slots must stay bare: no helm, chest, shoulders, gloves, belt, legs, or boots. Weapons and jewelry are still allowed.
 - **No Trinkets**: Necklaces and rings are stripped away. Survival has no room for lucky charms.
 - **Single Armor Discipline**: The first armor weight found on your body becomes your discipline. Other armor weights are removed. Barbarian blocks this feat if accepted first; if this feat is accepted first, Barbarian requires Heavy discipline.
+- **Oathbound Weapon**: The first weapon type found in your hands becomes your oath. Other weapon types are removed whenever they appear.
+- **Scavenger's Poverty**: Vendors and fences are closed; buying, selling, buyback, junk selling, and laundering are blocked.
+- **Questless Exile**: Abandonable quests are dropped. Offers and turn-ins are blocked. Main quests stay, but cannot advance.
 - **Self Made**: Only gear crafted by your own hands may stay equipped. Equipment-crafting stations are allowed for making your kit.
 - **Lockpick Nerves**: Each failed or broken pick leaves a panic mark for ten seconds. Three marks break your nerve and end the run; a clean lock steadies your hands.
 - **Hands Free**: Weapons are off the table. Improvise, punch, dodge, pray, or discover how persuasive empty hands can be.
