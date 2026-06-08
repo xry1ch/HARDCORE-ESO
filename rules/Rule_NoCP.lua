@@ -49,17 +49,6 @@ local function InstallHooks()
     for name in pairs(BLOCKED_SCENES) do
         AttachCloseOnShow(name)
     end
-    if ToggleChampionPerksScene then
-        ZO_PreHook("ToggleChampionPerksScene", function()
-            if Rule.active then Announce() return true end
-        end)
-    end
-    if ZO_ChampionPerks_ToggleChampionWindow then
-        ZO_PreHook("ZO_ChampionPerks_ToggleChampionWindow", function()
-            if Rule.active then Announce() return true end
-        end)
-    end
-
     Rule._hooksInstalled = true
 end
 

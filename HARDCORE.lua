@@ -2,7 +2,7 @@ local ADDON_NAME = "HARDCORE"
 HARDCORE = HARDCORE or {}
 local HARDCORE = HARDCORE
 HARDCORE.name = ADDON_NAME
-HARDCORE.version = "1.0.0"
+HARDCORE.version = "1.4.1"
 
 -- SavedVars
 HARDCORE.defaults = {
@@ -906,18 +906,10 @@ local function HARDCORE_ShowCPBlockedDialog()
                 text = "Champion Points Detected"
             },
             mainText = {
-                text = "You have Champion slottables equipped.\n\nPlease unslot ALL Champion skills before starting the challenge."
+                text = "Champion Points need to be unslotted before starting the challenge."
             },
             buttons = {
                 [1] = {
-                    text = "Open Champion UI",
-                    callback = function()
-                        if SCENE_MANAGER and SCENE_MANAGER.Show then
-                            SCENE_MANAGER:Show("championPerks")
-                        end
-                    end
-                },
-                [2] = {
                     text = SI_OK
                 }
             },
@@ -997,7 +989,7 @@ local function CreateIntroWindow()
     bg:SetDrawTier(DT_LOW)
     bg:SetDrawLayer(DL_BACKGROUND)
     bg:SetAlpha(0.64)
-    bg:SetBlendMode(TEX_BLEND_COLOR_ALPHA)
+    bg:SetBlendMode(TEX_BLEND_MODE_ALPHA)
 
     local wash = wm:CreateControl("HARDCORE_InnerWash", inner, CT_BACKDROP)
     wash:SetAnchorFill(inner)
@@ -1020,7 +1012,7 @@ local function CreateIntroWindow()
         local t = wm:CreateControl(name, inner, CT_TEXTURE)
         t:SetTexture(tex)
         t:SetDimensions(w or 16, h or 16)
-        t:SetBlendMode(TEX_BLEND_ALPHA)
+        t:SetBlendMode(TEX_BLEND_MODE_ALPHA)
         t:SetAlpha(0.9)
         t:SetDrawLayer(DL_OVERLAY)
         t:SetDrawLevel(5)
@@ -1258,7 +1250,7 @@ local function CreateIntroWindow()
         glow:SetAnchorFill()
         glow:SetTexture("/esoui/art/quest/texthighlight.dds")
         glow:SetAlpha(0.07)
-        glow:SetBlendMode(TEX_BLEND_ADD)
+        glow:SetBlendMode(TEX_BLEND_MODE_ADD)
 
         local iconFrame = wm:CreateControl(nil, rowCtrl, CT_BACKDROP)
         iconFrame:SetAnchor(LEFT, rowCtrl, LEFT, 16, 0)
@@ -2590,7 +2582,7 @@ function HARDCORE.ShowCongratulationsWindow(previewMode)
     bg:SetTextureCoords(0, 1, 0, 1)
     bg:SetDrawTier(DT_LOW)
     bg:SetAlpha(0.60)
-    bg:SetBlendMode(TEX_BLEND_COLOR_ALPHA)
+    bg:SetBlendMode(TEX_BLEND_MODE_ALPHA)
 
     local wash = wm:CreateControl("HARDCORE_CongratsInnerWash", inner, CT_BACKDROP)
     wash:SetAnchorFill(inner)
@@ -2612,7 +2604,7 @@ function HARDCORE.ShowCongratulationsWindow(previewMode)
         local t = wm:CreateControl(name, inner, CT_TEXTURE)
         t:SetTexture(tex)
         t:SetDimensions(w or 16, h or 16)
-        t:SetBlendMode(TEX_BLEND_ALPHA)
+        t:SetBlendMode(TEX_BLEND_MODE_ALPHA)
         t:SetAlpha(0.9)
         t:SetDrawLayer(DL_OVERLAY)
         t:SetDrawLevel(5)
@@ -2818,7 +2810,7 @@ function HARDCORE.ShowDeathWindow(previewMode)
     bg:SetDrawTier(DT_LOW)
     bg:SetAlpha(0.60)
     bg:SetColor(0.8, 0.2, 0.2, 1)
-    bg:SetBlendMode(TEX_BLEND_COLOR_ALPHA)
+    bg:SetBlendMode(TEX_BLEND_MODE_ALPHA)
 
     local wash = wm:CreateControl("HARDCORE_DeathInnerWash", inner, CT_BACKDROP)
     wash:SetAnchorFill(inner)
@@ -2840,7 +2832,7 @@ function HARDCORE.ShowDeathWindow(previewMode)
         local t = wm:CreateControl(name, inner, CT_TEXTURE)
         t:SetTexture(tex)
         t:SetDimensions(w or 16, h or 16)
-        t:SetBlendMode(TEX_BLEND_ALPHA)
+        t:SetBlendMode(TEX_BLEND_MODE_ALPHA)
         t:SetAlpha(0.9)
         t:SetDrawLayer(DL_OVERLAY)
         t:SetDrawLevel(5)
