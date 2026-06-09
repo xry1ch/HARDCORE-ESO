@@ -27,6 +27,20 @@ local OLD_DEFAULT_HUD_X = 360
 local OLD_DEFAULT_HUD_Y = 710
 local DEFAULT_HUD_X = 720
 local DEFAULT_HUD_Y = 710
+local SQUARE_HUD_WIDTH = 116
+local SQUARE_HUD_HEIGHT = 76
+local BAR_HUD_WIDTH = 116
+local BAR_HUD_HEIGHT = 60
+local BAR_METER_WIDTH = 108
+local BAR_METER_HEIGHT = 24
+local BAR_ICON_SIZE = 16
+local BAR_FILL_WIDTH = 78
+local BAR_FILL_HEIGHT = 6
+local HUD_STYLE_SQUARE = "square"
+local HUD_STYLE_HORIZONTAL = "horizontal"
+local DEFAULT_HUD_SCALE = 1
+local MIN_HUD_SCALE = 0.60
+local MAX_HUD_SCALE = 1.50
 
 local Rule = {
     id = ID,
@@ -55,7 +69,9 @@ local function GetSV()
                 y = DEFAULT_HUD_Y,
                 unlocked = false,
                 showLabels = true,
-                vignette = true
+                vignette = true,
+                displayStyle = HUD_STYLE_SQUARE,
+                scale = DEFAULT_HUD_SCALE
             },
             settings = {
                 hungerDrainMinutes = DEFAULT_HUNGER_DRAIN_MINUTES,
@@ -90,6 +106,11 @@ local function GetSV()
     if sv.hud.y == nil then sv.hud.y = DEFAULT_HUD_Y end
     if sv.hud.unlocked == nil then sv.hud.unlocked = false end
     if sv.hud.showLabels == nil then sv.hud.showLabels = true end
+    if sv.hud.displayStyle ~= HUD_STYLE_HORIZONTAL and sv.hud.displayStyle ~= HUD_STYLE_SQUARE then
+        sv.hud.displayStyle = sv.hud.horizontalBars == true and HUD_STYLE_HORIZONTAL or HUD_STYLE_SQUARE
+    end
+    sv.hud.horizontalBars = nil
+    sv.hud.scale = zo_clamp(tonumber(sv.hud.scale) or DEFAULT_HUD_SCALE, MIN_HUD_SCALE, MAX_HUD_SCALE)
     sv.hud.vignette = true
     sv.settings = sv.settings or {}
     sv.settings.hungerDrainMinutes = zo_clamp(tonumber(sv.settings.hungerDrainMinutes) or DEFAULT_HUNGER_DRAIN_MINUTES, 5, 240)
@@ -153,16 +174,11 @@ local function CheckWarnings()
 end
 
 local hudTLW
-local hungerFill
-local thirstFill
-local hungerValue
-local thirstValue
-local hungerLabel
-local thirstLabel
-local hungerPulse
-local thirstPulse
-local hungerShade
-local thirstShade
+local hudBg
+local hungerMeter
+local thirstMeter
+local currentHorizontalBars
+local currentHudScale
 local pulseTimeline
 
 local overlayTLW
@@ -204,8 +220,9 @@ local function ApplyHudPosition()
     local sv = GetSV()
     local rootW = GuiRoot and GuiRoot.GetWidth and GuiRoot:GetWidth() or 0
     local rootH = GuiRoot and GuiRoot.GetHeight and GuiRoot:GetHeight() or 0
-    local hudW = hudTLW.GetWidth and hudTLW:GetWidth() or 116
-    local hudH = hudTLW.GetHeight and hudTLW:GetHeight() or 76
+    local scale = zo_clamp(tonumber(sv.hud.scale) or DEFAULT_HUD_SCALE, MIN_HUD_SCALE, MAX_HUD_SCALE)
+    local hudW = (hudTLW.GetWidth and hudTLW:GetWidth() or SQUARE_HUD_WIDTH) * scale
+    local hudH = (hudTLW.GetHeight and hudTLW:GetHeight() or SQUARE_HUD_HEIGHT) * scale
     if rootW > 0 then
         sv.hud.x = zo_clamp(tonumber(sv.hud.x) or DEFAULT_HUD_X, 0, zo_max(0, rootW - hudW))
     end
@@ -214,6 +231,25 @@ local function ApplyHudPosition()
     end
     hudTLW:ClearAnchors()
     hudTLW:SetAnchor(TOPLEFT, GuiRoot, TOPLEFT, sv.hud.x, sv.hud.y)
+end
+
+local function ApplyHudScale(scale)
+    if not hudTLW then
+        return
+    end
+    scale = zo_clamp(tonumber(scale) or DEFAULT_HUD_SCALE, MIN_HUD_SCALE, MAX_HUD_SCALE)
+    if currentHudScale == scale then
+        return
+    end
+    currentHudScale = scale
+    hudTLW:SetScale(scale)
+    ApplyHudPosition()
+end
+
+local function SetControlsHidden(controls, hidden)
+    for _, control in ipairs(controls) do
+        control:SetHidden(hidden)
+    end
 end
 
 local function CreateMeter(parent, name, iconTexture, colorR, colorG, colorB, x)
@@ -284,7 +320,156 @@ local function CreateMeter(parent, name, iconTexture, colorR, colorG, colorB, x)
     label:SetFont("$(MEDIUM_FONT)|10|soft-shadow-thin")
     label:SetColor(0.82, 0.78, 0.66, 0.92)
 
-    return fill, value, label, pulse, shade
+    local bar = wm:CreateControl(nil, meter, CT_CONTROL)
+    bar:SetAnchor(TOPLEFT, meter, TOPLEFT, 0, 0)
+    bar:SetDimensions(BAR_METER_WIDTH, BAR_METER_HEIGHT)
+    bar:SetHidden(true)
+
+    local barRowBg = wm:CreateControl(nil, bar, CT_BACKDROP)
+    barRowBg:SetAnchor(TOPLEFT, bar, TOPLEFT, 0, 0)
+    barRowBg:SetDimensions(BAR_METER_WIDTH, BAR_METER_HEIGHT)
+    barRowBg:SetCenterColor(0.015, 0.012, 0.010, 0.86)
+    barRowBg:SetEdgeColor(0.42, 0.34, 0.20, 0.55)
+
+    local barIcon = wm:CreateControl(nil, bar, CT_TEXTURE)
+    barIcon:SetAnchor(TOPLEFT, bar, TOPLEFT, 5, 4)
+    barIcon:SetDimensions(BAR_ICON_SIZE, BAR_ICON_SIZE)
+    barIcon:SetTexture(iconTexture)
+    barIcon:SetColor(0.95, 0.98, 0.96, 1)
+
+    local barLabel = wm:CreateControl(nil, bar, CT_LABEL)
+    barLabel:SetAnchor(TOPLEFT, bar, TOPLEFT, 25, 2)
+    barLabel:SetDimensions(50, 13)
+    barLabel:SetHorizontalAlignment(TEXT_ALIGN_LEFT)
+    barLabel:SetFont("$(MEDIUM_FONT)|10|soft-shadow-thin")
+    barLabel:SetColor(0.82, 0.78, 0.66, 0.92)
+
+    local barValue = wm:CreateControl(nil, bar, CT_LABEL)
+    barValue:SetAnchor(TOPRIGHT, bar, TOPRIGHT, -4, 2)
+    barValue:SetDimensions(24, 13)
+    barValue:SetHorizontalAlignment(TEXT_ALIGN_RIGHT)
+    barValue:SetFont("$(BOLD_FONT)|11|soft-shadow-thick")
+    barValue:SetColor(1, 0.96, 0.82, 0.96)
+
+    local barBg = wm:CreateControl(nil, bar, CT_BACKDROP)
+    barBg:SetAnchor(TOPLEFT, bar, TOPLEFT, 25, 15)
+    barBg:SetDimensions(BAR_FILL_WIDTH, BAR_FILL_HEIGHT)
+    barBg:SetCenterColor(0.01, 0.012, 0.012, 0.94)
+    barBg:SetEdgeColor(0.20, 0.16, 0.10, 0.65)
+
+    local barFill = wm:CreateControl(nil, barBg, CT_BACKDROP)
+    barFill:SetAnchor(LEFT, barBg, LEFT, 0, 0)
+    barFill:SetDimensions(1, BAR_FILL_HEIGHT)
+    barFill:SetCenterColor(colorR, colorG, colorB, 0.90)
+    barFill:SetEdgeColor(0, 0, 0, 0)
+    barFill:SetAlpha(0.72)
+
+    local barPulse = wm:CreateControl(nil, barBg, CT_TEXTURE)
+    barPulse:SetAnchor(CENTER, barBg, CENTER, 0, 0)
+    barPulse:SetDimensions(BAR_FILL_WIDTH + 6, BAR_FILL_HEIGHT + 8)
+    barPulse:SetTexture("/esoui/art/quest/texthighlight.dds")
+    barPulse:SetColor(colorR, colorG, colorB, 1)
+    barPulse:SetAlpha(0)
+    barPulse:SetBlendMode(TEX_BLEND_MODE_ADD)
+    barPulse:SetHidden(true)
+
+    return {
+        control = meter,
+        squareControls = { glow, bg, fill, shade, pulse, icon, frame, value, label },
+        squareFill = fill,
+        squareValue = value,
+        squareLabel = label,
+        squarePulse = pulse,
+        squareShade = shade,
+        barControl = bar,
+        barFill = barFill,
+        barValue = barValue,
+        barLabel = barLabel,
+        barPulse = barPulse
+    }
+end
+
+local function AddPulseAnimations(pulse)
+    local aIn = pulseTimeline:InsertAnimation(ANIMATION_ALPHA, pulse, 0)
+    aIn:SetAlphaValues(0.05, 0.38)
+    aIn:SetDuration(450)
+    local aOut = pulseTimeline:InsertAnimation(ANIMATION_ALPHA, pulse, 450)
+    aOut:SetAlphaValues(0.38, 0.05)
+    aOut:SetDuration(450)
+end
+
+local function ResetPulseAlpha(meter)
+    meter.squarePulse:SetAlpha(0)
+    meter.barPulse:SetAlpha(0)
+end
+
+local function ApplyMeterLayout(meter, horizontalBars, squareX, barY)
+    meter.control:ClearAnchors()
+    if horizontalBars then
+        meter.control:SetAnchor(TOPLEFT, hudTLW, TOPLEFT, 5, barY)
+        meter.control:SetDimensions(BAR_METER_WIDTH, BAR_METER_HEIGHT)
+        SetControlsHidden(meter.squareControls, true)
+        meter.barControl:SetHidden(false)
+    else
+        meter.control:SetAnchor(LEFT, hudTLW, LEFT, squareX, 0)
+        meter.control:SetDimensions(54, 74)
+        SetControlsHidden(meter.squareControls, false)
+        meter.barControl:SetHidden(true)
+    end
+end
+
+local function ApplyHudLayout(horizontalBars)
+    if currentHorizontalBars == horizontalBars then
+        return
+    end
+    currentHorizontalBars = horizontalBars
+
+    if horizontalBars then
+        hudTLW:SetDimensions(BAR_HUD_WIDTH, BAR_HUD_HEIGHT)
+        hudBg:ClearAnchors()
+        hudBg:SetAnchor(TOPLEFT, hudTLW, TOPLEFT, 1, 4)
+        hudBg:SetDimensions(114, 52)
+        ApplyMeterLayout(thirstMeter, true, 2, 4)
+        ApplyMeterLayout(hungerMeter, true, 60, 30)
+    else
+        hudTLW:SetDimensions(SQUARE_HUD_WIDTH, SQUARE_HUD_HEIGHT)
+        hudBg:ClearAnchors()
+        hudBg:SetAnchor(TOP, hudTLW, TOP, 0, 4)
+        hudBg:SetDimensions(114, 54)
+        ApplyMeterLayout(thirstMeter, false, 2, 4)
+        ApplyMeterLayout(hungerMeter, false, 60, 26)
+    end
+
+    ApplyHudPosition()
+end
+
+local function UpdateMeter(meter, value, critical, criticalR, criticalG, criticalB, showLabels, horizontalBars)
+    local text = tostring(zo_round(value))
+    if horizontalBars then
+        local fillWidth = zo_max(1, zo_round(BAR_FILL_WIDTH * (value / 100)))
+        meter.barFill:SetHidden(value <= 0)
+        meter.barFill:SetDimensions(fillWidth, BAR_FILL_HEIGHT)
+        meter.barValue:SetText(text)
+        meter.barLabel:SetHidden(not showLabels)
+        meter.barPulse:SetHidden(not critical)
+        if critical then
+            meter.barValue:SetColor(criticalR, criticalG, criticalB, 1)
+        else
+            meter.barValue:SetColor(1, 0.96, 0.82, 0.96)
+        end
+        return
+    end
+
+    meter.squareFill:SetAlpha(0.07 + (value / 100) * 0.48)
+    meter.squareShade:SetAlpha(0.18 + ((1 - (value / 100)) * 0.78))
+    meter.squareValue:SetText(text)
+    meter.squareLabel:SetHidden(not showLabels)
+    meter.squarePulse:SetHidden(not critical)
+    if critical then
+        meter.squareValue:SetColor(criticalR, criticalG, criticalB, 1)
+    else
+        meter.squareValue:SetColor(1, 0.96, 0.82, 0.96)
+    end
 end
 
 local function EnsureHud()
@@ -294,7 +479,7 @@ local function EnsureHud()
 
     local wm = WINDOW_MANAGER
     hudTLW = wm:CreateTopLevelWindow("HARDCORE_TrailRationsHUD")
-    hudTLW:SetDimensions(116, 76)
+    hudTLW:SetDimensions(SQUARE_HUD_WIDTH, SQUARE_HUD_HEIGHT)
     hudTLW:SetDrawTier(DT_HIGH)
     hudTLW:SetDrawLayer(DL_OVERLAY)
     hudTLW:SetDrawLevel(9200)
@@ -303,17 +488,19 @@ local function EnsureHud()
     hudTLW:SetClampedToScreen(true)
     hudTLW:SetHidden(true)
 
-    local bg = wm:CreateControl(nil, hudTLW, CT_TEXTURE)
-    bg:SetAnchor(TOP, hudTLW, TOP, 0, 4)
-    bg:SetDimensions(114, 54)
-    bg:SetTexture("/esoui/art/actionbar/backrow_abilityframe_overlay.dds")
-    bg:SetColor(0.025, 0.020, 0.014, 0.46)
-    bg:SetAlpha(0.42)
+    hudBg = wm:CreateControl(nil, hudTLW, CT_TEXTURE)
+    hudBg:SetAnchor(TOP, hudTLW, TOP, 0, 4)
+    hudBg:SetDimensions(114, 54)
+    hudBg:SetTexture("/esoui/art/actionbar/backrow_abilityframe_overlay.dds")
+    hudBg:SetColor(0.025, 0.020, 0.014, 0.46)
+    hudBg:SetAlpha(0.42)
 
-    thirstFill, thirstValue, thirstLabel, thirstPulse, thirstShade = CreateMeter(hudTLW, "HARDCORE_TrailRationsThirst", ICON_DRINK, 0.08, 0.72, 1.0, 2)
-    hungerFill, hungerValue, hungerLabel, hungerPulse, hungerShade = CreateMeter(hudTLW, "HARDCORE_TrailRationsHunger", ICON_FOOD, 0.95, 0.68, 0.18, 60)
-    thirstLabel:SetText("WATER")
-    hungerLabel:SetText("FOOD")
+    thirstMeter = CreateMeter(hudTLW, "HARDCORE_TrailRationsThirst", ICON_DRINK, 0.08, 0.72, 1.0, 2)
+    hungerMeter = CreateMeter(hudTLW, "HARDCORE_TrailRationsHunger", ICON_FOOD, 0.95, 0.68, 0.18, 60)
+    thirstMeter.squareLabel:SetText("WATER")
+    thirstMeter.barLabel:SetText("WATER")
+    hungerMeter.squareLabel:SetText("FOOD")
+    hungerMeter.barLabel:SetText("FOOD")
 
     hudTLW:SetHandler("OnMoveStop", function()
         local sv = GetSV()
@@ -323,18 +510,10 @@ local function EnsureHud()
     end)
 
     pulseTimeline = ANIMATION_MANAGER:CreateTimeline()
-    local aIn1 = pulseTimeline:InsertAnimation(ANIMATION_ALPHA, thirstPulse, 0)
-    aIn1:SetAlphaValues(0.05, 0.38)
-    aIn1:SetDuration(450)
-    local aOut1 = pulseTimeline:InsertAnimation(ANIMATION_ALPHA, thirstPulse, 450)
-    aOut1:SetAlphaValues(0.38, 0.05)
-    aOut1:SetDuration(450)
-    local aIn2 = pulseTimeline:InsertAnimation(ANIMATION_ALPHA, hungerPulse, 0)
-    aIn2:SetAlphaValues(0.05, 0.38)
-    aIn2:SetDuration(450)
-    local aOut2 = pulseTimeline:InsertAnimation(ANIMATION_ALPHA, hungerPulse, 450)
-    aOut2:SetAlphaValues(0.38, 0.05)
-    aOut2:SetDuration(450)
+    AddPulseAnimations(thirstMeter.squarePulse)
+    AddPulseAnimations(thirstMeter.barPulse)
+    AddPulseAnimations(hungerMeter.squarePulse)
+    AddPulseAnimations(hungerMeter.barPulse)
     pulseTimeline:SetPlaybackType(ANIMATION_PLAYBACK_LOOP, LOOP_INDEFINITELY)
 
     ApplyHudPosition()
@@ -390,37 +569,16 @@ local function UpdateHud()
     local sv = GetSV()
     local hunger = ClampMeter(sv.hunger)
     local thirst = ClampMeter(sv.thirst)
+    local horizontalBars = sv.hud.displayStyle == HUD_STYLE_HORIZONTAL
 
-    hungerFill:SetAlpha(0.07 + (hunger / 100) * 0.48)
-    thirstFill:SetAlpha(0.07 + (thirst / 100) * 0.48)
-    if hungerShade then
-        hungerShade:SetAlpha(0.18 + ((1 - (hunger / 100)) * 0.78))
-    end
-    if thirstShade then
-        thirstShade:SetAlpha(0.18 + ((1 - (thirst / 100)) * 0.78))
-    end
-    hungerValue:SetText(tostring(zo_round(hunger)))
-    thirstValue:SetText(tostring(zo_round(thirst)))
-
-    if hunger <= WARNING_CRITICAL then
-        hungerValue:SetColor(1, 0.48, 0.28, 1)
-    else
-        hungerValue:SetColor(1, 0.96, 0.82, 0.96)
-    end
-    if thirst <= WARNING_CRITICAL then
-        thirstValue:SetColor(0.62, 0.92, 1, 1)
-    else
-        thirstValue:SetColor(1, 0.96, 0.82, 0.96)
-    end
+    ApplyHudLayout(horizontalBars)
+    ApplyHudScale(sv.hud.scale)
 
     local showLabels = sv.hud.showLabels == true
-    hungerLabel:SetHidden(not showLabels)
-    thirstLabel:SetHidden(not showLabels)
-
     local hungerCritical = hunger <= WARNING_CRITICAL
     local thirstCritical = thirst <= WARNING_CRITICAL
-    hungerPulse:SetHidden(not hungerCritical)
-    thirstPulse:SetHidden(not thirstCritical)
+    UpdateMeter(hungerMeter, hunger, hungerCritical, 1, 0.48, 0.28, showLabels, horizontalBars)
+    UpdateMeter(thirstMeter, thirst, thirstCritical, 0.62, 0.92, 1, showLabels, horizontalBars)
 
     if hungerCritical or thirstCritical then
         if pulseTimeline and not pulseTimeline:IsPlaying() then
@@ -428,8 +586,8 @@ local function UpdateHud()
         end
     elseif pulseTimeline and pulseTimeline:IsPlaying() then
         pulseTimeline:Stop()
-        hungerPulse:SetAlpha(0)
-        thirstPulse:SetAlpha(0)
+        ResetPulseAlpha(hungerMeter)
+        ResetPulseAlpha(thirstMeter)
     end
 
     UpdateLockState()

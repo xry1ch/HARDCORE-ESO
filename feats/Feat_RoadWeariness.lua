@@ -3,8 +3,8 @@ local HARDCORE = HARDCORE
 local ID = "RoadWeariness"
 local NS = "HARDCORE_RoadWeariness"
 
-local DEFAULT_FATIGUE_DRAIN_MINUTES = 150
-local DEFAULT_RESTORE_MINUTES = 60
+local DEFAULT_FATIGUE_DRAIN_MINUTES = 90
+local DEFAULT_RESTORE_SECONDS = 60
 local DEFAULT_STAMINA_DRAIN_MULTIPLIER = 18
 local DEFAULT_ACTION_DRAIN = 0.35
 local DEFAULT_COMBAT_DRAIN = 0.20
@@ -21,6 +21,20 @@ local OLD_DEFAULT_HUD_X = 478
 local OLD_DEFAULT_HUD_Y = 710
 local DEFAULT_HUD_X = 838
 local DEFAULT_HUD_Y = 710
+local SQUARE_HUD_WIDTH = 58
+local SQUARE_HUD_HEIGHT = 76
+local BAR_HUD_WIDTH = 116
+local BAR_HUD_HEIGHT = 36
+local BAR_METER_WIDTH = 108
+local BAR_METER_HEIGHT = 24
+local BAR_ICON_SIZE = 16
+local BAR_FILL_WIDTH = 78
+local BAR_FILL_HEIGHT = 6
+local HUD_STYLE_SQUARE = "square"
+local HUD_STYLE_HORIZONTAL = "horizontal"
+local DEFAULT_HUD_SCALE = 1
+local MIN_HUD_SCALE = 0.60
+local MAX_HUD_SCALE = 1.50
 
 local Rule = {
     id = ID,
@@ -36,11 +50,10 @@ Rule._lastCombatDrainMs = 0
 Rule._resting = false
 
 local hudTLW
-local fatigueFill
-local fatigueValue
-local fatigueLabel
-local fatiguePulse
-local fatigueShade
+local hudBg
+local fatigueMeter
+local currentHorizontalBars
+local currentHudScale
 local pulseTimeline
 
 local function GetSV()
@@ -53,11 +66,13 @@ local function GetSV()
                 x = DEFAULT_HUD_X,
                 y = DEFAULT_HUD_Y,
                 unlocked = false,
-                showLabels = true
+                showLabels = true,
+                displayStyle = HUD_STYLE_SQUARE,
+                scale = DEFAULT_HUD_SCALE
             },
             settings = {
                 fatigueDrainMinutes = DEFAULT_FATIGUE_DRAIN_MINUTES,
-                restoreMinutes = DEFAULT_RESTORE_MINUTES,
+                restoreSeconds = DEFAULT_RESTORE_SECONDS,
                 staminaDrainMultiplier = DEFAULT_STAMINA_DRAIN_MULTIPLIER,
                 actionDrain = DEFAULT_ACTION_DRAIN,
                 combatDrain = DEFAULT_COMBAT_DRAIN,
@@ -86,9 +101,18 @@ local function GetSV()
     if sv.hud.y == nil then sv.hud.y = DEFAULT_HUD_Y end
     if sv.hud.unlocked == nil then sv.hud.unlocked = false end
     if sv.hud.showLabels == nil then sv.hud.showLabels = true end
+    if sv.hud.displayStyle ~= HUD_STYLE_HORIZONTAL and sv.hud.displayStyle ~= HUD_STYLE_SQUARE then
+        sv.hud.displayStyle = sv.hud.horizontalBars == true and HUD_STYLE_HORIZONTAL or HUD_STYLE_SQUARE
+    end
+    sv.hud.horizontalBars = nil
+    sv.hud.scale = zo_clamp(tonumber(sv.hud.scale) or DEFAULT_HUD_SCALE, MIN_HUD_SCALE, MAX_HUD_SCALE)
     sv.settings = sv.settings or {}
     sv.settings.fatigueDrainMinutes = zo_clamp(tonumber(sv.settings.fatigueDrainMinutes) or DEFAULT_FATIGUE_DRAIN_MINUTES, 10, 300)
-    sv.settings.restoreMinutes = zo_clamp(tonumber(sv.settings.restoreMinutes) or DEFAULT_RESTORE_MINUTES, 5, 180)
+    if sv.settings.restoreSeconds == nil then
+        sv.settings.restoreSeconds = tonumber(sv.settings.restoreMinutes) or DEFAULT_RESTORE_SECONDS
+    end
+    sv.settings.restoreMinutes = nil
+    sv.settings.restoreSeconds = zo_clamp(tonumber(sv.settings.restoreSeconds) or DEFAULT_RESTORE_SECONDS, 5, 180)
     sv.settings.staminaDrainMultiplier = zo_clamp(tonumber(sv.settings.staminaDrainMultiplier) or DEFAULT_STAMINA_DRAIN_MULTIPLIER, 0, 50)
     sv.settings.actionDrain = zo_clamp(tonumber(sv.settings.actionDrain) or DEFAULT_ACTION_DRAIN, 0, 2)
     sv.settings.combatDrain = zo_clamp(tonumber(sv.settings.combatDrain) or DEFAULT_COMBAT_DRAIN, 0, 2)
@@ -98,9 +122,14 @@ local function GetSV()
     return sv
 end
 
-local function GetDurationMs(minutes, fallbackMinutes)
+local function GetMinutesDurationMs(minutes, fallbackMinutes)
     minutes = tonumber(minutes) or fallbackMinutes
     return zo_max(1, minutes) * 60 * 1000
+end
+
+local function GetSecondsDurationMs(seconds, fallbackSeconds)
+    seconds = tonumber(seconds) or fallbackSeconds
+    return zo_max(1, seconds) * 1000
 end
 
 local function IsOnHud()
@@ -177,8 +206,9 @@ local function ApplyHudPosition()
     local sv = GetSV()
     local rootW = GuiRoot and GuiRoot.GetWidth and GuiRoot:GetWidth() or 0
     local rootH = GuiRoot and GuiRoot.GetHeight and GuiRoot:GetHeight() or 0
-    local hudW = hudTLW.GetWidth and hudTLW:GetWidth() or 58
-    local hudH = hudTLW.GetHeight and hudTLW:GetHeight() or 76
+    local scale = zo_clamp(tonumber(sv.hud.scale) or DEFAULT_HUD_SCALE, MIN_HUD_SCALE, MAX_HUD_SCALE)
+    local hudW = (hudTLW.GetWidth and hudTLW:GetWidth() or SQUARE_HUD_WIDTH) * scale
+    local hudH = (hudTLW.GetHeight and hudTLW:GetHeight() or SQUARE_HUD_HEIGHT) * scale
     if rootW > 0 then
         sv.hud.x = zo_clamp(tonumber(sv.hud.x) or DEFAULT_HUD_X, 0, zo_max(0, rootW - hudW))
     end
@@ -187,6 +217,25 @@ local function ApplyHudPosition()
     end
     hudTLW:ClearAnchors()
     hudTLW:SetAnchor(TOPLEFT, GuiRoot, TOPLEFT, sv.hud.x, sv.hud.y)
+end
+
+local function ApplyHudScale(scale)
+    if not hudTLW then
+        return
+    end
+    scale = zo_clamp(tonumber(scale) or DEFAULT_HUD_SCALE, MIN_HUD_SCALE, MAX_HUD_SCALE)
+    if currentHudScale == scale then
+        return
+    end
+    currentHudScale = scale
+    hudTLW:SetScale(scale)
+    ApplyHudPosition()
+end
+
+local function SetControlsHidden(controls, hidden)
+    for _, control in ipairs(controls) do
+        control:SetHidden(hidden)
+    end
 end
 
 local function CreateMeter(parent, name, iconTexture, colorR, colorG, colorB)
@@ -258,7 +307,154 @@ local function CreateMeter(parent, name, iconTexture, colorR, colorG, colorB)
     label:SetColor(0.82, 0.78, 0.66, 0.92)
     label:SetText("REST")
 
-    return fill, value, label, pulse, shade
+    local bar = wm:CreateControl(nil, meter, CT_CONTROL)
+    bar:SetAnchor(TOPLEFT, meter, TOPLEFT, 0, 0)
+    bar:SetDimensions(BAR_METER_WIDTH, BAR_METER_HEIGHT)
+    bar:SetHidden(true)
+
+    local barRowBg = wm:CreateControl(nil, bar, CT_BACKDROP)
+    barRowBg:SetAnchor(TOPLEFT, bar, TOPLEFT, 0, 0)
+    barRowBg:SetDimensions(BAR_METER_WIDTH, BAR_METER_HEIGHT)
+    barRowBg:SetCenterColor(0.015, 0.012, 0.010, 0.86)
+    barRowBg:SetEdgeColor(0.42, 0.34, 0.20, 0.55)
+
+    local barIcon = wm:CreateControl(nil, bar, CT_TEXTURE)
+    barIcon:SetAnchor(TOPLEFT, bar, TOPLEFT, 5, 4)
+    barIcon:SetDimensions(BAR_ICON_SIZE, BAR_ICON_SIZE)
+    barIcon:SetTexture(iconTexture)
+    barIcon:SetColor(0.95, 0.98, 0.96, 1)
+
+    local barLabel = wm:CreateControl(nil, bar, CT_LABEL)
+    barLabel:SetAnchor(TOPLEFT, bar, TOPLEFT, 25, 2)
+    barLabel:SetDimensions(50, 13)
+    barLabel:SetHorizontalAlignment(TEXT_ALIGN_LEFT)
+    barLabel:SetFont("$(MEDIUM_FONT)|10|soft-shadow-thin")
+    barLabel:SetColor(0.82, 0.78, 0.66, 0.92)
+    barLabel:SetText("REST")
+
+    local barValue = wm:CreateControl(nil, bar, CT_LABEL)
+    barValue:SetAnchor(TOPRIGHT, bar, TOPRIGHT, -4, 2)
+    barValue:SetDimensions(24, 13)
+    barValue:SetHorizontalAlignment(TEXT_ALIGN_RIGHT)
+    barValue:SetFont("$(BOLD_FONT)|11|soft-shadow-thick")
+    barValue:SetColor(1, 0.96, 0.82, 0.96)
+
+    local barBg = wm:CreateControl(nil, bar, CT_BACKDROP)
+    barBg:SetAnchor(TOPLEFT, bar, TOPLEFT, 25, 15)
+    barBg:SetDimensions(BAR_FILL_WIDTH, BAR_FILL_HEIGHT)
+    barBg:SetCenterColor(0.01, 0.012, 0.012, 0.94)
+    barBg:SetEdgeColor(0.20, 0.16, 0.10, 0.65)
+
+    local barFill = wm:CreateControl(nil, barBg, CT_BACKDROP)
+    barFill:SetAnchor(LEFT, barBg, LEFT, 0, 0)
+    barFill:SetDimensions(1, BAR_FILL_HEIGHT)
+    barFill:SetCenterColor(colorR, colorG, colorB, 0.90)
+    barFill:SetEdgeColor(0, 0, 0, 0)
+    barFill:SetAlpha(0.72)
+
+    local barPulse = wm:CreateControl(nil, barBg, CT_TEXTURE)
+    barPulse:SetAnchor(CENTER, barBg, CENTER, 0, 0)
+    barPulse:SetDimensions(BAR_FILL_WIDTH + 6, BAR_FILL_HEIGHT + 8)
+    barPulse:SetTexture("/esoui/art/quest/texthighlight.dds")
+    barPulse:SetColor(colorR, colorG, colorB, 1)
+    barPulse:SetAlpha(0)
+    barPulse:SetBlendMode(TEX_BLEND_MODE_ADD)
+    barPulse:SetHidden(true)
+
+    return {
+        control = meter,
+        squareControls = { glow, bg, fill, shade, pulse, icon, frame, value, label },
+        squareFill = fill,
+        squareValue = value,
+        squareLabel = label,
+        squarePulse = pulse,
+        squareShade = shade,
+        barControl = bar,
+        barFill = barFill,
+        barValue = barValue,
+        barLabel = barLabel,
+        barPulse = barPulse
+    }
+end
+
+local function AddPulseAnimations(pulse)
+    local aIn = pulseTimeline:InsertAnimation(ANIMATION_ALPHA, pulse, 0)
+    aIn:SetAlphaValues(0.05, 0.38)
+    aIn:SetDuration(450)
+    local aOut = pulseTimeline:InsertAnimation(ANIMATION_ALPHA, pulse, 450)
+    aOut:SetAlphaValues(0.38, 0.05)
+    aOut:SetDuration(450)
+end
+
+local function ResetPulseAlpha(meter)
+    meter.squarePulse:SetAlpha(0)
+    meter.barPulse:SetAlpha(0)
+end
+
+local function ApplyMeterLayout(meter, horizontalBars)
+    meter.control:ClearAnchors()
+    if horizontalBars then
+        meter.control:SetAnchor(TOPLEFT, hudTLW, TOPLEFT, 5, 5)
+        meter.control:SetDimensions(BAR_METER_WIDTH, BAR_METER_HEIGHT)
+        SetControlsHidden(meter.squareControls, true)
+        meter.barControl:SetHidden(false)
+    else
+        meter.control:SetAnchor(LEFT, hudTLW, LEFT, 2, 0)
+        meter.control:SetDimensions(54, 74)
+        SetControlsHidden(meter.squareControls, false)
+        meter.barControl:SetHidden(true)
+    end
+end
+
+local function ApplyHudLayout(horizontalBars)
+    if currentHorizontalBars == horizontalBars then
+        return
+    end
+    currentHorizontalBars = horizontalBars
+
+    if horizontalBars then
+        hudTLW:SetDimensions(BAR_HUD_WIDTH, BAR_HUD_HEIGHT)
+        hudBg:ClearAnchors()
+        hudBg:SetAnchor(TOPLEFT, hudTLW, TOPLEFT, 1, 4)
+        hudBg:SetDimensions(114, 28)
+    else
+        hudTLW:SetDimensions(SQUARE_HUD_WIDTH, SQUARE_HUD_HEIGHT)
+        hudBg:ClearAnchors()
+        hudBg:SetAnchor(TOP, hudTLW, TOP, 0, 4)
+        hudBg:SetDimensions(58, 54)
+    end
+
+    ApplyMeterLayout(fatigueMeter, horizontalBars)
+    ApplyHudPosition()
+end
+
+local function UpdateMeter(meter, value, critical, showLabels, horizontalBars)
+    local text = tostring(zo_round(value))
+    if horizontalBars then
+        local fillWidth = zo_max(1, zo_round(BAR_FILL_WIDTH * (value / 100)))
+        meter.barFill:SetHidden(value <= 0)
+        meter.barFill:SetDimensions(fillWidth, BAR_FILL_HEIGHT)
+        meter.barValue:SetText(text)
+        meter.barLabel:SetHidden(not showLabels)
+        meter.barPulse:SetHidden(not critical)
+        if critical then
+            meter.barValue:SetColor(0.86, 0.64, 1, 1)
+        else
+            meter.barValue:SetColor(1, 0.96, 0.82, 0.96)
+        end
+        return
+    end
+
+    meter.squareFill:SetAlpha(0.07 + (value / 100) * 0.48)
+    meter.squareShade:SetAlpha(0.18 + ((1 - (value / 100)) * 0.78))
+    meter.squareValue:SetText(text)
+    meter.squareLabel:SetHidden(not showLabels)
+    meter.squarePulse:SetHidden(not critical)
+    if critical then
+        meter.squareValue:SetColor(0.86, 0.64, 1, 1)
+    else
+        meter.squareValue:SetColor(1, 0.96, 0.82, 0.96)
+    end
 end
 
 local function EnsureHud()
@@ -268,7 +464,7 @@ local function EnsureHud()
 
     local wm = WINDOW_MANAGER
     hudTLW = wm:CreateTopLevelWindow("HARDCORE_RoadWearinessHUD")
-    hudTLW:SetDimensions(58, 76)
+    hudTLW:SetDimensions(SQUARE_HUD_WIDTH, SQUARE_HUD_HEIGHT)
     hudTLW:SetDrawTier(DT_HIGH)
     hudTLW:SetDrawLayer(DL_OVERLAY)
     hudTLW:SetDrawLevel(9201)
@@ -277,14 +473,14 @@ local function EnsureHud()
     hudTLW:SetClampedToScreen(true)
     hudTLW:SetHidden(true)
 
-    local bg = wm:CreateControl(nil, hudTLW, CT_TEXTURE)
-    bg:SetAnchor(TOP, hudTLW, TOP, 0, 4)
-    bg:SetDimensions(58, 54)
-    bg:SetTexture("/esoui/art/actionbar/backrow_abilityframe_overlay.dds")
-    bg:SetColor(0.025, 0.020, 0.014, 0.46)
-    bg:SetAlpha(0.42)
+    hudBg = wm:CreateControl(nil, hudTLW, CT_TEXTURE)
+    hudBg:SetAnchor(TOP, hudTLW, TOP, 0, 4)
+    hudBg:SetDimensions(58, 54)
+    hudBg:SetTexture("/esoui/art/actionbar/backrow_abilityframe_overlay.dds")
+    hudBg:SetColor(0.025, 0.020, 0.014, 0.46)
+    hudBg:SetAlpha(0.42)
 
-    fatigueFill, fatigueValue, fatigueLabel, fatiguePulse, fatigueShade = CreateMeter(hudTLW, "HARDCORE_RoadWearinessFatigue", ICON_FATIGUE, 0.72, 0.60, 0.92)
+    fatigueMeter = CreateMeter(hudTLW, "HARDCORE_RoadWearinessFatigue", ICON_FATIGUE, 0.72, 0.60, 0.92)
 
     hudTLW:SetHandler("OnMoveStop", function()
         local sv = GetSV()
@@ -294,12 +490,8 @@ local function EnsureHud()
     end)
 
     pulseTimeline = ANIMATION_MANAGER:CreateTimeline()
-    local aIn = pulseTimeline:InsertAnimation(ANIMATION_ALPHA, fatiguePulse, 0)
-    aIn:SetAlphaValues(0.05, 0.38)
-    aIn:SetDuration(450)
-    local aOut = pulseTimeline:InsertAnimation(ANIMATION_ALPHA, fatiguePulse, 450)
-    aOut:SetAlphaValues(0.38, 0.05)
-    aOut:SetDuration(450)
+    AddPulseAnimations(fatigueMeter.squarePulse)
+    AddPulseAnimations(fatigueMeter.barPulse)
     pulseTimeline:SetPlaybackType(ANIMATION_PLAYBACK_LOOP, LOOP_INDEFINITELY)
 
     ApplyHudPosition()
@@ -339,27 +531,19 @@ local function UpdateHud()
     EnsureHud()
     local sv = GetSV()
     local fatigue = ClampMeter(sv.fatigue)
-
-    fatigueFill:SetAlpha(0.07 + (fatigue / 100) * 0.48)
-    fatigueShade:SetAlpha(0.18 + ((1 - (fatigue / 100)) * 0.78))
-    fatigueValue:SetText(tostring(zo_round(fatigue)))
-
-    if fatigue <= WARNING_CRITICAL then
-        fatigueValue:SetColor(0.86, 0.64, 1, 1)
-    else
-        fatigueValue:SetColor(1, 0.96, 0.82, 0.96)
-    end
-
-    fatigueLabel:SetHidden(not (sv.hud.showLabels == true))
+    local horizontalBars = sv.hud.displayStyle == HUD_STYLE_HORIZONTAL
     local critical = fatigue <= WARNING_CRITICAL
-    fatiguePulse:SetHidden(not critical)
+
+    ApplyHudLayout(horizontalBars)
+    ApplyHudScale(sv.hud.scale)
+    UpdateMeter(fatigueMeter, fatigue, critical, sv.hud.showLabels == true, horizontalBars)
     if critical then
         if pulseTimeline and not pulseTimeline:IsPlaying() then
             pulseTimeline:PlayFromStart()
         end
     elseif pulseTimeline and pulseTimeline:IsPlaying() then
         pulseTimeline:Stop()
-        fatiguePulse:SetAlpha(0)
+        ResetPulseAlpha(fatigueMeter)
     end
 
     UpdateLockState()
@@ -481,9 +665,9 @@ local function AdvanceFatigue()
     local delta = 0
     local settings = sv.settings
     if resting then
-        delta = (elapsed / GetDurationMs(settings.restoreMinutes, DEFAULT_RESTORE_MINUTES)) * 100
+        delta = (elapsed / GetSecondsDurationMs(settings.restoreSeconds, DEFAULT_RESTORE_SECONDS)) * 100
     else
-        delta = -((elapsed / GetDurationMs(settings.fatigueDrainMinutes, DEFAULT_FATIGUE_DRAIN_MINUTES)) * 100)
+        delta = -((elapsed / GetMinutesDurationMs(settings.fatigueDrainMinutes, DEFAULT_FATIGUE_DRAIN_MINUTES)) * 100)
         if IsPlayerMoving and IsPlayerMoving() and GetUnitPower then
             local stamina, maxStamina = GetUnitPower("player", COMBAT_MECHANIC_FLAGS_STAMINA)
             if Rule._lastStamina and stamina and maxStamina and maxStamina > 0 and stamina < Rule._lastStamina then

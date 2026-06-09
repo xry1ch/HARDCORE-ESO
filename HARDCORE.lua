@@ -2052,6 +2052,31 @@ local function OnAddOnLoaded(event, addonName)
     end
     local lam = LibAddonMenu2
     if lam then
+        local HUD_STYLE_SQUARE = "square"
+        local HUD_STYLE_HORIZONTAL = "horizontal"
+        local HUD_STYLE_CHOICES = { "Square icons", "Horizontal bars" }
+        local HUD_STYLE_VALUES = { HUD_STYLE_SQUARE, HUD_STYLE_HORIZONTAL }
+        local DEFAULT_HUD_SCALE = 1
+        local MIN_HUD_SCALE = 0.60
+        local MAX_HUD_SCALE = 1.50
+
+        local function NormalizeHudSettings(hud)
+            if hud.displayStyle ~= HUD_STYLE_HORIZONTAL and hud.displayStyle ~= HUD_STYLE_SQUARE then
+                hud.displayStyle = hud.horizontalBars == true and HUD_STYLE_HORIZONTAL or HUD_STYLE_SQUARE
+            end
+            hud.horizontalBars = nil
+            hud.scale = zo_clamp(tonumber(hud.scale) or DEFAULT_HUD_SCALE, MIN_HUD_SCALE, MAX_HUD_SCALE)
+        end
+
+        local function SetHudStyle(hud, value)
+            hud.displayStyle = value == HUD_STYLE_HORIZONTAL and HUD_STYLE_HORIZONTAL or HUD_STYLE_SQUARE
+            hud.horizontalBars = nil
+        end
+
+        local function SetHudScale(hud, value)
+            hud.scale = zo_clamp(tonumber(value) or DEFAULT_HUD_SCALE, MIN_HUD_SCALE, MAX_HUD_SCALE)
+        end
+
         local function RefreshNoHealthBarOptions()
             local rm = HARDCORE.RuleManager
             if not (rm and rm.GetRule) then
@@ -2063,25 +2088,32 @@ local function OnAddOnLoaded(event, addonName)
             end
         end
         local function GetTrailRationsSV()
+            local sv
             if HARDCORE.GetTrailRationsSV then
-                return HARDCORE.GetTrailRationsSV()
-            end
-            return {
-                hud = {
-                    unlocked = false,
-                    showLabels = true,
-                    vignette = true
-                },
-                settings = {
-                    hungerDrainMinutes = 90,
-                    thirstDrainMinutes = 45,
-                    useEmotes = false,
-                    eatRefillAmount = 20,
-                    drinkRefillAmount = 20,
-                    eatStartDelayMs = 0,
-                    drinkStartDelayMs = 0
+                sv = HARDCORE.GetTrailRationsSV()
+            else
+                sv = {
+                    hud = {
+                        unlocked = false,
+                        showLabels = true,
+                        vignette = true,
+                        displayStyle = HUD_STYLE_SQUARE,
+                        scale = DEFAULT_HUD_SCALE
+                    },
+                    settings = {
+                        hungerDrainMinutes = 90,
+                        thirstDrainMinutes = 45,
+                        useEmotes = false,
+                        eatRefillAmount = 20,
+                        drinkRefillAmount = 20,
+                        eatStartDelayMs = 0,
+                        drinkStartDelayMs = 0
+                    }
                 }
-            }
+            end
+            sv.hud = sv.hud or {}
+            NormalizeHudSettings(sv.hud)
+            return sv
         end
         local function RefreshTrailRationsOptions()
             if HARDCORE.RefreshTrailRationsOptions then
@@ -2089,24 +2121,31 @@ local function OnAddOnLoaded(event, addonName)
             end
         end
         local function GetRoadWearinessSV()
+            local sv
             if HARDCORE.GetRoadWearinessSV then
-                return HARDCORE.GetRoadWearinessSV()
-            end
-            return {
-                hud = {
-                    unlocked = false,
-                    showLabels = true
-                },
-                settings = {
-                    fatigueDrainMinutes = 150,
-                    restoreMinutes = 60,
-                    staminaDrainMultiplier = 18,
-                    actionDrain = 0.35,
-                    combatDrain = 0.20,
-                    weaponLockThreshold = 20,
-                    npcLockThreshold = 10
+                sv = HARDCORE.GetRoadWearinessSV()
+            else
+                sv = {
+                    hud = {
+                        unlocked = false,
+                        showLabels = true,
+                        displayStyle = HUD_STYLE_SQUARE,
+                        scale = DEFAULT_HUD_SCALE
+                    },
+                    settings = {
+                        fatigueDrainMinutes = 90,
+                        restoreSeconds = 60,
+                        staminaDrainMultiplier = 18,
+                        actionDrain = 0.35,
+                        combatDrain = 0.20,
+                        weaponLockThreshold = 20,
+                        npcLockThreshold = 10
+                    }
                 }
-            }
+            end
+            sv.hud = sv.hud or {}
+            NormalizeHudSettings(sv.hud)
+            return sv
         end
         local function RefreshRoadWearinessOptions()
             if HARDCORE.RefreshRoadWearinessOptions then
@@ -2485,7 +2524,7 @@ local function OnAddOnLoaded(event, addonName)
             }, {
                 type = "checkbox",
                 name = "Show meter labels",
-                tooltip = "Show Hunger and Thirst text below the survival icons.",
+                tooltip = "Show Hunger and Thirst text on the survival display.",
                 width = "full",
                 getFunc = function()
                     return GetTrailRationsSV().hud.showLabels == true
@@ -2495,6 +2534,38 @@ local function OnAddOnLoaded(event, addonName)
                     RefreshTrailRationsOptions()
                 end,
                 default = true
+            }, {
+                type = "dropdown",
+                name = "HUD style",
+                tooltip = "Choose whether Trail Rations uses square icons or compact horizontal bars.",
+                choices = HUD_STYLE_CHOICES,
+                choicesValues = HUD_STYLE_VALUES,
+                width = "full",
+                getFunc = function()
+                    return GetTrailRationsSV().hud.displayStyle
+                end,
+                setFunc = function(value)
+                    SetHudStyle(GetTrailRationsSV().hud, value)
+                    RefreshTrailRationsOptions()
+                end,
+                default = HUD_STYLE_SQUARE
+            }, {
+                type = "slider",
+                name = "HUD scale",
+                tooltip = "Scale the Trail Rations HUD in either display style.",
+                min = MIN_HUD_SCALE,
+                max = MAX_HUD_SCALE,
+                step = 0.05,
+                decimals = 2,
+                width = "full",
+                getFunc = function()
+                    return GetTrailRationsSV().hud.scale
+                end,
+                setFunc = function(value)
+                    SetHudScale(GetTrailRationsSV().hud, value)
+                    RefreshTrailRationsOptions()
+                end,
+                default = DEFAULT_HUD_SCALE
             }, {
                 type = "button",
                 name = "Reset HUD position",
@@ -2534,20 +2605,20 @@ local function OnAddOnLoaded(event, addonName)
                 setFunc = function(value)
                     GetRoadWearinessSV().settings.fatigueDrainMinutes = value
                 end,
-                default = 150
+                default = 90
             }, {
                 type = "slider",
                 name = "Rest recovery time",
-                tooltip = "Minutes for rest to restore weariness from empty to full.",
+                tooltip = "Seconds for rest to restore weariness from empty to full.",
                 min = 5,
                 max = 180,
                 step = 5,
                 width = "full",
                 getFunc = function()
-                    return GetRoadWearinessSV().settings.restoreMinutes
+                    return GetRoadWearinessSV().settings.restoreSeconds
                 end,
                 setFunc = function(value)
-                    GetRoadWearinessSV().settings.restoreMinutes = value
+                    GetRoadWearinessSV().settings.restoreSeconds = value
                 end,
                 default = 60
             }, {
@@ -2643,7 +2714,7 @@ local function OnAddOnLoaded(event, addonName)
             }, {
                 type = "checkbox",
                 name = "Show meter label",
-                tooltip = "Show the Rest label below the fatigue icon.",
+                tooltip = "Show the Rest label on the weariness display.",
                 width = "full",
                 getFunc = function()
                     return GetRoadWearinessSV().hud.showLabels == true
@@ -2653,6 +2724,38 @@ local function OnAddOnLoaded(event, addonName)
                     RefreshRoadWearinessOptions()
                 end,
                 default = true
+            }, {
+                type = "dropdown",
+                name = "HUD style",
+                tooltip = "Choose whether Road Weariness uses a square icon or compact horizontal bar.",
+                choices = HUD_STYLE_CHOICES,
+                choicesValues = HUD_STYLE_VALUES,
+                width = "full",
+                getFunc = function()
+                    return GetRoadWearinessSV().hud.displayStyle
+                end,
+                setFunc = function(value)
+                    SetHudStyle(GetRoadWearinessSV().hud, value)
+                    RefreshRoadWearinessOptions()
+                end,
+                default = HUD_STYLE_SQUARE
+            }, {
+                type = "slider",
+                name = "HUD scale",
+                tooltip = "Scale the Road Weariness HUD in either display style.",
+                min = MIN_HUD_SCALE,
+                max = MAX_HUD_SCALE,
+                step = 0.05,
+                decimals = 2,
+                width = "full",
+                getFunc = function()
+                    return GetRoadWearinessSV().hud.scale
+                end,
+                setFunc = function(value)
+                    SetHudScale(GetRoadWearinessSV().hud, value)
+                    RefreshRoadWearinessOptions()
+                end,
+                default = DEFAULT_HUD_SCALE
             }, {
                 type = "button",
                 name = "Reset HUD position",
