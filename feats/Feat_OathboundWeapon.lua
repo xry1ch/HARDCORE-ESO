@@ -98,7 +98,7 @@ end
 local function Alert(message)
     local now = GetFrameTimeMilliseconds()
     if now - Rule._lastAlertMs > 1500 then
-        ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, message)
+        HARDCORE.ShowAlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, message)
         Rule._lastAlertMs = now
     end
 end
@@ -106,7 +106,7 @@ end
 local function AlertBound(weaponType)
     local now = GetFrameTimeMilliseconds()
     if now - Rule._lastBindAlertMs > 1500 then
-        ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.QUEST_ACCEPTED,
+        HARDCORE.ShowAlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.QUEST_ACCEPTED,
             "HARDCORE: Oathbound Weapon bound to " .. WEAPON_TYPE_NAMES[weaponType] .. ".")
         Rule._lastBindAlertMs = now
     end

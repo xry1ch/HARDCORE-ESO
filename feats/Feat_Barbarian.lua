@@ -64,7 +64,7 @@ end
 local function Alert(reason)
     local now = GetFrameTimeMilliseconds()
     if reason ~= Rule._lastReason or now - Rule._lastAlertMs > 1500 then
-        ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK,
+        HARDCORE.ShowAlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK,
             "HARDCORE: Barbarian allows only two-handed weapons, heavy armor, and no head/chest armor.")
         Rule._lastAlertMs = now
         Rule._lastReason = reason

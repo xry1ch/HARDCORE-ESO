@@ -35,7 +35,7 @@ end
 local function AlertBlocked()
     local now = GetFrameTimeMilliseconds()
     if now - Rule._lastBlockAlertMs > 1200 then
-        ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK,
+        HARDCORE.ShowAlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK,
             "HARDCORE: Questless Exile forbids accepting or completing quests.")
         Rule._lastBlockAlertMs = now
     end
@@ -48,7 +48,7 @@ local function AlertAbandoned(count)
         if count ~= 1 then
             message = message .. "s"
         end
-        ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.QUEST_ABANDONED, message .. ".")
+        HARDCORE.ShowAlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.QUEST_ABANDONED, message .. ".")
         Rule._lastAbandonAlertMs = now
     end
 end
@@ -57,7 +57,7 @@ local function AlertProtected(questName)
     local now = GetFrameTimeMilliseconds()
     if now - Rule._lastProtectedAlertMs > 4000 then
         local name = questName and questName ~= "" and (": " .. questName) or "."
-        ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK,
+        HARDCORE.ShowAlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK,
             "HARDCORE: Questless Exile cannot abandon protected quests" .. name)
         Rule._lastProtectedAlertMs = now
     end

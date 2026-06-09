@@ -89,7 +89,7 @@ local function FormatClock(ms)
 end
 
 local function Alert(text, sound)
-    ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, sound or SOUNDS.NEGATIVE_CLICK, text)
+    HARDCORE.ShowAlertNoSuppression(UI_ALERT_CATEGORY_ALERT, sound or SOUNDS.NEGATIVE_CLICK, text)
 end
 
 local function GetPersistedElapsedMs(sv)

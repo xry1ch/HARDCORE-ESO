@@ -3,16 +3,16 @@ local HARDCORE = HARDCORE
 local ID = "RoadWeariness"
 local NS = "HARDCORE_RoadWeariness"
 
+local DEFAULT_FATIGUE_DRAIN_MINUTES = 150
+local DEFAULT_RESTORE_MINUTES = 60
+local DEFAULT_STAMINA_DRAIN_MULTIPLIER = 18
+local DEFAULT_ACTION_DRAIN = 0.35
+local DEFAULT_COMBAT_DRAIN = 0.20
+local DEFAULT_WEAPON_LOCK_THRESHOLD = 20
+local DEFAULT_NPC_LOCK_THRESHOLD = 10
 local TICK_MS = 1000
-local FATIGUE_DRAIN_MS = 150 * 60 * 1000
-local RESTORE_MS = 60 * 1000
-local STAMINA_DRAIN_MULTIPLIER = 18
-local ACTION_DRAIN = 0.35
-local COMBAT_DRAIN = 0.20
 local WARNING_LOW = 35
 local WARNING_CRITICAL = 15
-local WEAPON_LOCK_THRESHOLD = 20
-local NPC_LOCK_THRESHOLD = 10
 
 local ICON_FATIGUE = "/esoui/art/ava/ava_rankicon64_prefect.dds"
 local METER_FRAME_TEXTURE = "/esoui/art/actionbar/abilityframe64_up.dds"
@@ -55,6 +55,15 @@ local function GetSV()
                 unlocked = false,
                 showLabels = true
             },
+            settings = {
+                fatigueDrainMinutes = DEFAULT_FATIGUE_DRAIN_MINUTES,
+                restoreMinutes = DEFAULT_RESTORE_MINUTES,
+                staminaDrainMultiplier = DEFAULT_STAMINA_DRAIN_MULTIPLIER,
+                actionDrain = DEFAULT_ACTION_DRAIN,
+                combatDrain = DEFAULT_COMBAT_DRAIN,
+                weaponLockThreshold = DEFAULT_WEAPON_LOCK_THRESHOLD,
+                npcLockThreshold = DEFAULT_NPC_LOCK_THRESHOLD
+            },
             warnings = {
                 low = false,
                 critical = false,
@@ -77,8 +86,21 @@ local function GetSV()
     if sv.hud.y == nil then sv.hud.y = DEFAULT_HUD_Y end
     if sv.hud.unlocked == nil then sv.hud.unlocked = false end
     if sv.hud.showLabels == nil then sv.hud.showLabels = true end
+    sv.settings = sv.settings or {}
+    sv.settings.fatigueDrainMinutes = zo_clamp(tonumber(sv.settings.fatigueDrainMinutes) or DEFAULT_FATIGUE_DRAIN_MINUTES, 10, 300)
+    sv.settings.restoreMinutes = zo_clamp(tonumber(sv.settings.restoreMinutes) or DEFAULT_RESTORE_MINUTES, 5, 180)
+    sv.settings.staminaDrainMultiplier = zo_clamp(tonumber(sv.settings.staminaDrainMultiplier) or DEFAULT_STAMINA_DRAIN_MULTIPLIER, 0, 50)
+    sv.settings.actionDrain = zo_clamp(tonumber(sv.settings.actionDrain) or DEFAULT_ACTION_DRAIN, 0, 2)
+    sv.settings.combatDrain = zo_clamp(tonumber(sv.settings.combatDrain) or DEFAULT_COMBAT_DRAIN, 0, 2)
+    sv.settings.weaponLockThreshold = zo_clamp(tonumber(sv.settings.weaponLockThreshold) or DEFAULT_WEAPON_LOCK_THRESHOLD, 0, 100)
+    sv.settings.npcLockThreshold = zo_clamp(tonumber(sv.settings.npcLockThreshold) or DEFAULT_NPC_LOCK_THRESHOLD, 0, 100)
     sv.warnings = sv.warnings or {}
     return sv
+end
+
+local function GetDurationMs(minutes, fallbackMinutes)
+    minutes = tonumber(minutes) or fallbackMinutes
+    return zo_max(1, minutes) * 60 * 1000
 end
 
 local function IsOnHud()
@@ -94,7 +116,7 @@ local function ClampMeter(value)
 end
 
 local function Alert(text, sound)
-    ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, sound or SOUNDS.NEGATIVE_CLICK, text)
+    HARDCORE.ShowAlertNoSuppression(UI_ALERT_CATEGORY_ALERT, sound or SOUNDS.NEGATIVE_CLICK, text)
 end
 
 local function IsHardcoreActive()
@@ -370,7 +392,7 @@ local function EnforceWeaponFatigue()
         return
     end
     local sv = GetSV()
-    if ClampMeter(sv.fatigue) > WEAPON_LOCK_THRESHOLD then
+    if ClampMeter(sv.fatigue) > sv.settings.weaponLockThreshold then
         sv.warnings.weapons = false
         return
     end
@@ -390,7 +412,8 @@ local function EnforceWeaponFatigue()
 end
 
 local function IsNpcLocked()
-    return Rule.active and IsHardcoreActive() and ClampMeter(GetSV().fatigue) <= NPC_LOCK_THRESHOLD
+    local sv = GetSV()
+    return Rule.active and IsHardcoreActive() and ClampMeter(sv.fatigue) <= sv.settings.npcLockThreshold
 end
 
 local function EndNpcInteraction()
@@ -456,14 +479,15 @@ local function AdvanceFatigue()
 
     local resting = Rule._resting or IsRestingInteraction()
     local delta = 0
+    local settings = sv.settings
     if resting then
-        delta = (elapsed / RESTORE_MS) * 100
+        delta = (elapsed / GetDurationMs(settings.restoreMinutes, DEFAULT_RESTORE_MINUTES)) * 100
     else
-        delta = -((elapsed / FATIGUE_DRAIN_MS) * 100)
+        delta = -((elapsed / GetDurationMs(settings.fatigueDrainMinutes, DEFAULT_FATIGUE_DRAIN_MINUTES)) * 100)
         if IsPlayerMoving and IsPlayerMoving() and GetUnitPower then
             local stamina, maxStamina = GetUnitPower("player", COMBAT_MECHANIC_FLAGS_STAMINA)
             if Rule._lastStamina and stamina and maxStamina and maxStamina > 0 and stamina < Rule._lastStamina then
-                delta = delta - (((Rule._lastStamina - stamina) / maxStamina) * STAMINA_DRAIN_MULTIPLIER)
+                delta = delta - (((Rule._lastStamina - stamina) / maxStamina) * settings.staminaDrainMultiplier)
             end
             Rule._lastStamina = stamina
         end
@@ -544,7 +568,7 @@ local function Install()
     EVENT_MANAGER:RegisterForEvent(NS .. "_ACTION", EVENT_ACTION_SLOT_ABILITY_USED, function()
         if Rule.active and IsHardcoreActive() then
             StopResting()
-            ChangeFatigue(-ACTION_DRAIN)
+            ChangeFatigue(-GetSV().settings.actionDrain)
         end
     end)
     EVENT_MANAGER:RegisterForEvent(NS .. "_COMBAT", EVENT_COMBAT_EVENT, function(_, result, isError, _abilityName, _abilityGraphic, _abilityActionSlotType, _sourceName, sourceType)
@@ -556,7 +580,7 @@ local function Install()
             if now - Rule._lastCombatDrainMs >= 650 then
                 Rule._lastCombatDrainMs = now
                 StopResting()
-                ChangeFatigue(-COMBAT_DRAIN)
+                ChangeFatigue(-GetSV().settings.combatDrain)
             end
         end
     end)

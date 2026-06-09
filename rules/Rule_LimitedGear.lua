@@ -19,7 +19,7 @@ end
 local function alertOnce()
     local now = GetFrameTimeMilliseconds()
     if now - Rule._lastAlert > 1500 then
-        ZO_Alert(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, "HARDCORE: Only white/green/blue gear allowed.")
+        HARDCORE.ShowAlert(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, "HARDCORE: Only white/green/blue gear allowed.")
         Rule._lastAlert = now
     end
 end

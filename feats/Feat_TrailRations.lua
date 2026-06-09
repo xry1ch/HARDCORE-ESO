@@ -3,9 +3,16 @@ local HARDCORE = HARDCORE
 local ID = "TrailRations"
 local NS = "HARDCORE_TrailRations"
 
-local HUNGER_DRAIN_MS = 90 * 60 * 1000
-local THIRST_DRAIN_MS = 45 * 60 * 1000
+local DEFAULT_HUNGER_DRAIN_MINUTES = 90
+local DEFAULT_THIRST_DRAIN_MINUTES = 45
+local DEFAULT_EMOTE_REFILL_AMOUNT = 20
+local DEFAULT_EMOTE_START_DELAY_MS = 0
 local TICK_MS = 5000
+local EMOTE_REFILL_TICK_MS = 250
+local EAT_ANIMATION_MS = 3000
+local DRINK_ANIMATION_MS = 2500
+local EAT_IDLE_MS = 6500
+local DRINK_IDLE_MS = 15000
 local WARNING_LOW = 35
 local WARNING_CRITICAL = 15
 local MAX_DARKEN_ALPHA = 0.82
@@ -33,6 +40,8 @@ Rule._installed = false
 Rule._lastConsumedType = nil
 Rule._lastConsumedMs = 0
 Rule._slotTypeCache = {}
+Rule._emoteHookTargets = {}
+Rule._emoteRefill = nil
 
 local function GetSV()
     HARDCORE = HARDCORE or {}
@@ -47,6 +56,15 @@ local function GetSV()
                 unlocked = false,
                 showLabels = true,
                 vignette = true
+            },
+            settings = {
+                hungerDrainMinutes = DEFAULT_HUNGER_DRAIN_MINUTES,
+                thirstDrainMinutes = DEFAULT_THIRST_DRAIN_MINUTES,
+                useEmotes = false,
+                eatRefillAmount = DEFAULT_EMOTE_REFILL_AMOUNT,
+                drinkRefillAmount = DEFAULT_EMOTE_REFILL_AMOUNT,
+                eatStartDelayMs = DEFAULT_EMOTE_START_DELAY_MS,
+                drinkStartDelayMs = DEFAULT_EMOTE_START_DELAY_MS
             },
             warnings = {
                 hungerLow = false,
@@ -73,8 +91,22 @@ local function GetSV()
     if sv.hud.unlocked == nil then sv.hud.unlocked = false end
     if sv.hud.showLabels == nil then sv.hud.showLabels = true end
     sv.hud.vignette = true
+    sv.settings = sv.settings or {}
+    sv.settings.hungerDrainMinutes = zo_clamp(tonumber(sv.settings.hungerDrainMinutes) or DEFAULT_HUNGER_DRAIN_MINUTES, 5, 240)
+    sv.settings.thirstDrainMinutes = zo_clamp(tonumber(sv.settings.thirstDrainMinutes) or DEFAULT_THIRST_DRAIN_MINUTES, 5, 240)
+    sv.settings.useEmotes = sv.settings.useEmotes == true
+    sv.settings.eatRefillAmount = zo_clamp(tonumber(sv.settings.eatRefillAmount) or DEFAULT_EMOTE_REFILL_AMOUNT, 1, 100)
+    sv.settings.drinkRefillAmount = zo_clamp(tonumber(sv.settings.drinkRefillAmount) or DEFAULT_EMOTE_REFILL_AMOUNT, 1, 100)
+    sv.settings.eatStartDelayMs = zo_clamp(tonumber(sv.settings.eatStartDelayMs) or DEFAULT_EMOTE_START_DELAY_MS, 0, 5000)
+    sv.settings.drinkStartDelayMs = zo_clamp(tonumber(sv.settings.drinkStartDelayMs) or DEFAULT_EMOTE_START_DELAY_MS, 0, 5000)
     sv.warnings = sv.warnings or {}
     return sv
+end
+
+local function GetDrainDurationMs(settingName, fallbackMinutes)
+    local sv = GetSV()
+    local minutes = tonumber(sv.settings and sv.settings[settingName]) or fallbackMinutes
+    return zo_max(1, minutes) * 60 * 1000
 end
 
 local function IsOnHud()
@@ -96,7 +128,7 @@ local function ResetWarningFlagsForMeter(sv, meter)
 end
 
 local function Alert(text, sound)
-    ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, sound or SOUNDS.NEGATIVE_CLICK, text)
+    HARDCORE.ShowAlertNoSuppression(UI_ALERT_CATEGORY_ALERT, sound or SOUNDS.NEGATIVE_CLICK, text)
 end
 
 local function CheckWarnings()
@@ -405,26 +437,142 @@ local function UpdateHud()
     UpdateOverlay()
 end
 
-local function Refill(itemType)
+local function AddMeterValue(meter, amount)
     if not Rule.active then
-        return
+        return false
     end
 
     local sv = GetSV()
+    local current = ClampMeter(sv[meter])
+    if current >= 100 then
+        return false
+    end
+
+    sv[meter] = ClampMeter(current + (tonumber(amount) or 0))
+    if sv[meter] > current then
+        ResetWarningFlagsForMeter(sv, meter)
+        sv.lastUpdateMs = GetFrameTimeMilliseconds()
+        UpdateHud()
+        return true
+    end
+
+    return false
+end
+
+local function RefillFromConsumable(itemType)
+    if GetSV().settings.useEmotes then
+        return
+    end
+
+    local meter
+    local label
     if itemType == ITEMTYPE_FOOD then
-        sv.hunger = 100
-        ResetWarningFlagsForMeter(sv, "hunger")
-        Alert("HARDCORE: Hunger restored.", SOUNDS.INVENTORY_ITEM_APPLY_CHARGE)
+        meter = "hunger"
+        label = "Hunger"
     elseif itemType == ITEMTYPE_DRINK then
-        sv.thirst = 100
-        ResetWarningFlagsForMeter(sv, "thirst")
-        Alert("HARDCORE: Thirst restored.", SOUNDS.INVENTORY_ITEM_APPLY_CHARGE)
+        meter = "thirst"
+        label = "Thirst"
     else
         return
     end
 
+    local sv = GetSV()
+    sv[meter] = 100
+    ResetWarningFlagsForMeter(sv, meter)
     sv.lastUpdateMs = GetFrameTimeMilliseconds()
     UpdateHud()
+    Alert("HARDCORE: " .. label .. " restored.", SOUNDS.INVENTORY_ITEM_APPLY_CHARGE)
+end
+
+local function StopEmoteRefill()
+    Rule._emoteRefill = nil
+    EVENT_MANAGER:UnregisterForUpdate(NS .. "_EMOTE_REFILL")
+end
+
+local function GetActiveElapsedMs(startElapsedMs, endElapsedMs, startDelayMs, activeMs, repeatMs)
+    startElapsedMs = zo_max(0, startElapsedMs - startDelayMs)
+    endElapsedMs = endElapsedMs - startDelayMs
+    if endElapsedMs <= startElapsedMs then
+        return 0
+    end
+
+    local total = 0
+    local windowStart = math.floor(startElapsedMs / repeatMs) * repeatMs
+    while windowStart < endElapsedMs do
+        local startOverlap = zo_max(startElapsedMs, windowStart)
+        local endOverlap = zo_min(endElapsedMs, windowStart + activeMs)
+        if endOverlap > startOverlap then
+            total = total + (endOverlap - startOverlap)
+        end
+        windowStart = windowStart + repeatMs
+    end
+    return total
+end
+
+local function UpdateEmoteRefill()
+    local session = Rule._emoteRefill
+    if not (session and Rule.active and HARDCORE and HARDCORE.saved and HARDCORE.saved.isActive) then
+        StopEmoteRefill()
+        return
+    end
+
+    local sv = GetSV()
+    if not sv.settings.useEmotes or IsDead() or (IsPlayerMoving and IsPlayerMoving()) then
+        StopEmoteRefill()
+        return
+    end
+
+    local now = GetFrameTimeMilliseconds()
+    local activeElapsedMs = GetActiveElapsedMs(session.lastElapsedMs, now - session.startedMs, session.startDelayMs,
+        session.activeMs, session.repeatMs)
+    session.lastElapsedMs = now - session.startedMs
+    if activeElapsedMs <= 0 then
+        return
+    end
+
+    AddMeterValue(session.meter, (session.amount * activeElapsedMs) / session.activeMs)
+end
+
+local function StartEmoteRefill(meter)
+    if not (Rule.active and HARDCORE and HARDCORE.saved and HARDCORE.saved.isActive) then
+        return
+    end
+
+    local sv = GetSV()
+    if not sv.settings.useEmotes then
+        return
+    end
+
+    local amount
+    local repeatMs
+    local startDelayMs
+    local activeMs
+    if meter == "hunger" then
+        amount = sv.settings.eatRefillAmount
+        startDelayMs = sv.settings.eatStartDelayMs
+        activeMs = EAT_ANIMATION_MS
+        repeatMs = EAT_ANIMATION_MS + EAT_IDLE_MS
+    elseif meter == "thirst" then
+        amount = sv.settings.drinkRefillAmount
+        startDelayMs = sv.settings.drinkStartDelayMs
+        activeMs = DRINK_ANIMATION_MS
+        repeatMs = DRINK_ANIMATION_MS + DRINK_IDLE_MS
+    else
+        return
+    end
+
+    Rule._emoteRefill = {
+        meter = meter,
+        amount = amount,
+        startDelayMs = startDelayMs,
+        activeMs = activeMs,
+        repeatMs = repeatMs,
+        startedMs = GetFrameTimeMilliseconds(),
+        lastElapsedMs = 0
+    }
+
+    EVENT_MANAGER:UnregisterForUpdate(NS .. "_EMOTE_REFILL")
+    EVENT_MANAGER:RegisterForUpdate(NS .. "_EMOTE_REFILL", EMOTE_REFILL_TICK_MS, UpdateEmoteRefill)
 end
 
 local function CaptureItemTypeFromBag(bagId, slotIndex)
@@ -476,7 +624,7 @@ local function HandleInventorySlotUpdate(_, bagId, slotIndex, _isNewItem, _itemS
 
     local itemType = GetCachedItemType(bagId, slotIndex) or CacheItemTypeFromBag(bagId, slotIndex)
     if stackCountChange and stackCountChange < 0 and (itemType == ITEMTYPE_FOOD or itemType == ITEMTYPE_DRINK) then
-        Refill(itemType)
+        RefillFromConsumable(itemType)
     end
 end
 
@@ -485,7 +633,7 @@ local function TryRefillFromCapturedUse()
         return
     end
     if Rule._lastConsumedType and GetFrameTimeMilliseconds() - Rule._lastConsumedMs <= 2000 then
-        Refill(Rule._lastConsumedType)
+        RefillFromConsumable(Rule._lastConsumedType)
         Rule._lastConsumedType = nil
         Rule._lastConsumedMs = 0
     end
@@ -494,6 +642,28 @@ end
 local function TryRefillFromCapturedUseLater()
     zo_callLater(TryRefillFromCapturedUse, 250)
     zo_callLater(TryRefillFromCapturedUse, 1000)
+end
+
+local function InstallEmoteCommandHook(command, meter)
+    local commandFunc = SLASH_COMMANDS and SLASH_COMMANDS[command]
+    if not commandFunc or Rule._emoteHookTargets[command] == commandFunc then
+        return
+    end
+
+    ZO_PreHook(SLASH_COMMANDS, command, function()
+        StartEmoteRefill(meter)
+        return false
+    end)
+    Rule._emoteHookTargets[command] = SLASH_COMMANDS[command]
+end
+
+local function InstallEmoteCommandHooks()
+    if not ZO_PreHook then
+        return
+    end
+
+    InstallEmoteCommandHook("/eat", "hunger")
+    InstallEmoteCommandHook("/drink", "thirst")
 end
 
 local function AdvanceMeters()
@@ -519,8 +689,10 @@ local function AdvanceMeters()
         return
     end
 
-    sv.hunger = ClampMeter(sv.hunger - ((elapsed / HUNGER_DRAIN_MS) * 100))
-    sv.thirst = ClampMeter(sv.thirst - ((elapsed / THIRST_DRAIN_MS) * 100))
+    sv.hunger = ClampMeter(sv.hunger -
+        ((elapsed / GetDrainDurationMs("hungerDrainMinutes", DEFAULT_HUNGER_DRAIN_MINUTES)) * 100))
+    sv.thirst = ClampMeter(sv.thirst -
+        ((elapsed / GetDrainDurationMs("thirstDrainMinutes", DEFAULT_THIRST_DRAIN_MINUTES)) * 100))
 
     CheckWarnings()
     UpdateHud()
@@ -563,6 +735,12 @@ local function Install()
     EnsureHud()
     EnsureOverlay()
     HookScenes()
+    InstallEmoteCommandHooks()
+
+    if PLAYER_EMOTE_MANAGER and PLAYER_EMOTE_MANAGER.RegisterCallback and not Rule._emoteCallbackRegistered then
+        PLAYER_EMOTE_MANAGER:RegisterCallback("EmoteSlashCommandsUpdated", InstallEmoteCommandHooks)
+        Rule._emoteCallbackRegistered = true
+    end
 
     if ZO_PreHook then
         ZO_PreHook("ZO_InventorySlot_InitiateConfirmUseItem", function(inventorySlot)
@@ -595,6 +773,7 @@ local function Install()
         if not Rule.active then
             return
         end
+        StopEmoteRefill()
         GetSV().lastUpdateMs = GetFrameTimeMilliseconds()
         UpdateHud()
     end)
@@ -605,6 +784,18 @@ local function Install()
         end
         ApplyHudPosition()
     end)
+    EVENT_MANAGER:RegisterForEvent(NS .. "_EMOTE_FAILED", EVENT_PLAYER_EMOTE_FAILED_PLAY, StopEmoteRefill)
+    EVENT_MANAGER:RegisterForEvent(NS .. "_COMBAT", EVENT_PLAYER_COMBAT_STATE, function(_, inCombat)
+        if inCombat then
+            StopEmoteRefill()
+        end
+    end)
+    EVENT_MANAGER:RegisterForEvent(NS .. "_MOUNTED", EVENT_MOUNTED_STATE_CHANGED, function(_, mounted)
+        if mounted then
+            StopEmoteRefill()
+        end
+    end)
+    EVENT_MANAGER:RegisterForEvent(NS .. "_ACTION", EVENT_ACTION_SLOT_ABILITY_USED, StopEmoteRefill)
 
     Rule._installed = true
 end
@@ -622,6 +813,7 @@ end
 function Rule:OnDisable()
     self.active = false
     EVENT_MANAGER:UnregisterForUpdate(NS .. "_TICK")
+    StopEmoteRefill()
 
     if pulseTimeline and pulseTimeline:IsPlaying() then
         pulseTimeline:Stop()
@@ -643,6 +835,9 @@ function Rule:OnDisable()
 end
 
 function Rule:RefreshOptions()
+    if not GetSV().settings.useEmotes then
+        StopEmoteRefill()
+    end
     UpdateHud()
 end
 
@@ -742,8 +937,10 @@ function HARDCORE.DebugTrailRationsCommand(action, arg1, arg2)
             d("Usage: /hc debug rations decay <minutes>")
             return
         end
-        sv.hunger = ClampMeter(sv.hunger - ((minutes * 60 * 1000 / HUNGER_DRAIN_MS) * 100))
-        sv.thirst = ClampMeter(sv.thirst - ((minutes * 60 * 1000 / THIRST_DRAIN_MS) * 100))
+        sv.hunger = ClampMeter(sv.hunger -
+            ((minutes * 60 * 1000 / GetDrainDurationMs("hungerDrainMinutes", DEFAULT_HUNGER_DRAIN_MINUTES)) * 100))
+        sv.thirst = ClampMeter(sv.thirst -
+            ((minutes * 60 * 1000 / GetDrainDurationMs("thirstDrainMinutes", DEFAULT_THIRST_DRAIN_MINUTES)) * 100))
         sv.lastUpdateMs = GetFrameTimeMilliseconds()
         CheckWarnings()
         UpdateHud()

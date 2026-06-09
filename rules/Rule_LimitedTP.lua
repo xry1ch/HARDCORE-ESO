@@ -23,7 +23,7 @@ end
 
 local function AlertBlocked()
     if ShouldThrottleAlert() then return end
-    ZO_Alert(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK,
+    HARDCORE.ShowAlert(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK,
         "HARDCORE: Fast travel is limited to wayshrine-to-wayshrine. Recall from map is disabled.")
 end
 
@@ -35,6 +35,10 @@ local function IsNoWayshrinesActive()
     return HARDCORE and HARDCORE.IsNoWayshrinesFeatActive and HARDCORE.IsNoWayshrinesFeatActive()
 end
 
+local function IsHomeTravelAllowed()
+    return HARDCORE and HARDCORE.IsHomeTravelAllowed and HARDCORE.IsHomeTravelAllowed()
+end
+
 local function BlockWhenActive()
     if Rule.active then
         AlertBlocked()
@@ -43,8 +47,24 @@ local function BlockWhenActive()
     return false
 end
 
+local function BlockHouseTravelWhenActive()
+    if Rule.active and not IsHomeTravelAllowed() then
+        AlertBlocked()
+        return true
+    end
+    return false
+end
+
 local function InstallHooks()
     if Rule._hooksInstalled then return end
+
+    ZO_PreHook("ZO_Dialogs_ShowPlatformDialog", function(dialogName)
+        if Rule.active and not IsHomeTravelAllowed() and dialogName == "TRAVEL_TO_HOUSE_CONFIRM" then
+            AlertBlocked()
+            return true
+        end
+        return false
+    end)
 
     ZO_PreHook("FastTravelToNode", function()
         if not Rule.active then return false end
@@ -67,6 +87,18 @@ local function InstallHooks()
     for _, functionName in ipairs(blockedJumpFunctions) do
         if _G[functionName] then
             ZO_PreHook(functionName, BlockWhenActive)
+        end
+    end
+
+    local blockedHouseTravelFunctions = {
+        "JumpToHouse",
+        "JumpToSpecificHouse",
+        "RequestJumpToHouse"
+    }
+
+    for _, functionName in ipairs(blockedHouseTravelFunctions) do
+        if _G[functionName] then
+            ZO_PreHook(functionName, BlockHouseTravelWhenActive)
         end
     end
 

@@ -41,7 +41,7 @@ end
 local function alertOnce(msg)
   local now = GetFrameTimeMilliseconds()
   if now - Rule._lastAlert > ALERT_COOLDOWN_MS then
-    ZO_Alert(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, msg or "HARDCORE: Max 2 pieces per set.")
+    HARDCORE.ShowAlert(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, msg or "HARDCORE: Max 2 pieces per set.")
     Rule._lastAlert = now
   end
 end

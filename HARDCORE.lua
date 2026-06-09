@@ -13,11 +13,44 @@ HARDCORE.defaults = {
     difficultyTier = 2,
     disableVisionDim = false,
     disableLowHealthVolume = false,
+    disableNotificationMessages = false,
+    neverDie = false,
+    allowHomeTravel = false,
     debugMode = false,
     hasSeenCongrats = false,
     hasSeenFeatPermanentWarning = false,
     hasDied = false
 }
+
+local function AreNotificationMessagesDisabled()
+    return HARDCORE.saved and HARDCORE.saved.disableNotificationMessages == true
+end
+
+function HARDCORE.AreNotificationMessagesDisabled()
+    return AreNotificationMessagesDisabled()
+end
+
+function HARDCORE.ShowAlert(category, soundId, message, ...)
+    if AreNotificationMessagesDisabled() then
+        return
+    end
+    ZO_Alert(category, soundId, message, ...)
+end
+
+function HARDCORE.ShowAlertNoSuppression(category, soundId, message, ...)
+    if AreNotificationMessagesDisabled() then
+        return
+    end
+    ZO_AlertNoSuppression(category, soundId, message, ...)
+end
+
+function HARDCORE.IsNeverDieEnabled()
+    return HARDCORE.saved and HARDCORE.saved.neverDie == true
+end
+
+function HARDCORE.IsHomeTravelAllowed()
+    return HARDCORE.saved and HARDCORE.saved.allowHomeTravel == true
+end
 
 local COLOR = {
     white = ZO_ColorDef:New(1, 1, 1, 1),
@@ -588,6 +621,9 @@ local function HideTip()
 end
 
 local function AnnounceTrialBegins()
+    if AreNotificationMessagesDisabled() then
+        return
+    end
     local params = CENTER_SCREEN_ANNOUNCE:CreateMessageParams(CSA_CATEGORY_LARGE_TEXT, SOUNDS.QUEST_ACCEPTED)
     params:SetText("The Trial Begins")
     CENTER_SCREEN_ANNOUNCE:AddMessageWithParams(params)
@@ -742,7 +778,7 @@ function HARDCORE.FailChallenge(reason)
         HARDCORE.RestoreHUDSettings()
     end
     if reason and reason ~= "" then
-        ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, reason)
+        HARDCORE.ShowAlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, reason)
     end
     if HARDCORE.ShowDeathWindow then
         HARDCORE.ShowDeathWindow()
@@ -876,6 +912,11 @@ end
 
 local function HARDCORE_OnUnitDeathStateChanged(_, unitTag, isDead)
     if isDead and HARDCORE.saved and HARDCORE.saved.isActive then
+        if HARDCORE.IsNeverDieEnabled() then
+            HARDCORE.ShowAlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK,
+                "HARDCORE: Plot armor absorbed that death.")
+            return
+        end
         HARDCORE.FailChallenge("HARDCORE: Challenge failed. You died.")
     end
 end
@@ -1342,7 +1383,7 @@ local function CreateIntroWindow()
             end
             local blockedReason = GetFeatBlockedReason(challenge.ruleId)
             if blockedReason then
-                ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK,
+                HARDCORE.ShowAlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK,
                     "HARDCORE: " .. blockedReason)
                 RefreshAcceptButton()
                 return
@@ -1354,7 +1395,7 @@ local function CreateIntroWindow()
             end
             HARDCORE.RefreshFeatAcceptButtons()
             PlaySound(SOUNDS.QUEST_ACCEPTED)
-            ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.QUEST_ACCEPTED,
+            HARDCORE.ShowAlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.QUEST_ACCEPTED,
                 "HARDCORE: " .. challenge.title .. " accepted.")
         end
         acceptButton:SetHandler("OnClicked", function()
@@ -1363,7 +1404,7 @@ local function CreateIntroWindow()
             end
             local blockedReason = GetFeatBlockedReason(challenge.ruleId)
             if blockedReason then
-                ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK,
+                HARDCORE.ShowAlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK,
                     "HARDCORE: " .. blockedReason)
                 RefreshAcceptButton()
                 return
@@ -1542,7 +1583,7 @@ local function CreateIntroWindow()
                 if HARDCORE.subtitle then
                     HARDCORE.subtitle:SetText("Hardcore Mode is inactive. You can re-enter anytime.")
                 end
-                ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.QUEST_ACCEPTED,
+                HARDCORE.ShowAlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.QUEST_ACCEPTED,
                     isCompletedRun and
                     "HARDCORE: Challenge ended. Settings restored." or
                     "HARDCORE: Challenge surrendered. Settings restored.")
@@ -1599,7 +1640,7 @@ local function CreateIntroWindow()
                 if HARDCORE.ChallengeManager and HARDCORE.ChallengeManager.SetActive then
                     HARDCORE.ChallengeManager:SetActive(true)
                 end
-                ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.QUEST_ACCEPTED,
+                HARDCORE.ShowAlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.QUEST_ACCEPTED,
                     "HARDCORE: Challenge active. Good luck!")
                 if HARDCORE.subtitle then
                     HARDCORE.subtitle:SetText("")
@@ -1680,7 +1721,7 @@ local function OpenHardcoreUI()
     end
 
     if HARDCORE.saved and HARDCORE.saved.hasDied then
-        ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, "HARDCORE: Challenge failed. You cannot reactivate it.")
+        HARDCORE.ShowAlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, "HARDCORE: Challenge failed. You cannot reactivate it.")
     end
 
     if not HARDCORE.window then
@@ -1697,8 +1738,11 @@ local function OpenHardcoreUI()
     PlaySound(SOUNDS.SKILL_XP_DARK_FISSURE_CLOSED)
 end
 
+local PrintDebugHelp
+local RunDebugCommand
+
 local function RegisterSlash()
-    local function PrintDebugHelp()
+    PrintDebugHelp = function()
         d("HARDCORE debug commands:")
         d("/hc debug help")
         d("/hc debug status")
@@ -1741,9 +1785,9 @@ local function RegisterSlash()
         d("/hc debug selfmade enforce")
     end
 
-    local function RunDebugCommand(args)
+    RunDebugCommand = function(args)
         if not (HARDCORE.saved and HARDCORE.saved.debugMode) then
-            ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK,
+            HARDCORE.ShowAlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK,
                 "HARDCORE: Debug mode is disabled in addon settings.")
             return
         end
@@ -1794,10 +1838,10 @@ local function RegisterSlash()
 
         if area == "revive" or area == "resetdeath" then
             if HARDCORE.DebugResetFailedChallenge and HARDCORE.DebugResetFailedChallenge() then
-                ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.QUEST_ACCEPTED,
+                HARDCORE.ShowAlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.QUEST_ACCEPTED,
                     "HARDCORE: Failed challenge state reset. Use /hc to re-enter.")
             else
-                ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK,
+                HARDCORE.ShowAlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK,
                     "HARDCORE: Failed challenge state could not be reset.")
             end
             return
@@ -1842,7 +1886,7 @@ local function RegisterSlash()
             for _, refresh in ipairs(HARDCORE._featAcceptRefreshers or {}) do
                 refresh()
             end
-            ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK,
+            HARDCORE.ShowAlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK,
                 "HARDCORE: " .. tostring(disabledCount) .. " feat(s) abandoned.")
             return
         end
@@ -1983,6 +2027,15 @@ local function OnAddOnLoaded(event, addonName)
                     unlocked = false,
                     showLabels = true,
                     vignette = true
+                },
+                settings = {
+                    hungerDrainMinutes = 90,
+                    thirstDrainMinutes = 45,
+                    useEmotes = false,
+                    eatRefillAmount = 20,
+                    drinkRefillAmount = 20,
+                    eatStartDelayMs = 0,
+                    drinkStartDelayMs = 0
                 }
             }
         end
@@ -1999,6 +2052,15 @@ local function OnAddOnLoaded(event, addonName)
                 hud = {
                     unlocked = false,
                     showLabels = true
+                },
+                settings = {
+                    fatigueDrainMinutes = 150,
+                    restoreMinutes = 60,
+                    staminaDrainMultiplier = 18,
+                    actionDrain = 0.35,
+                    combatDrain = 0.20,
+                    weaponLockThreshold = 20,
+                    npcLockThreshold = 10
                 }
             }
         end
@@ -2071,6 +2133,77 @@ local function OnAddOnLoaded(event, addonName)
                 HARDCORE.RefreshLockpickNervesOptions()
             end
         end
+        local function AreDebugButtonsDisabled()
+            return not (HARDCORE.saved and HARDCORE.saved.debugMode)
+        end
+        local function RunDebugButtonCommand(command)
+            if RunDebugCommand then
+                RunDebugCommand(command)
+            end
+        end
+        local debugControls = {{
+            type = "checkbox",
+            name = "Debug mode",
+            tooltip = "Enable /hc debug commands for testing addon behavior.",
+            width = "full",
+            getFunc = function()
+                return HARDCORE.saved and HARDCORE.saved.debugMode
+            end,
+            setFunc = function(val)
+                if HARDCORE.saved then
+                    HARDCORE.saved.debugMode = val and true or false
+                end
+            end,
+            default = false
+        }}
+        local function AddDebugButton(name, command, tooltip)
+            debugControls[#debugControls + 1] = {
+                type = "button",
+                name = name,
+                tooltip = tooltip or ("/hc " .. command),
+                width = "full",
+                disabled = AreDebugButtonsDisabled,
+                func = function()
+                    RunDebugButtonCommand(command)
+                end
+            }
+        end
+
+        AddDebugButton("Print debug help", "debug help")
+        AddDebugButton("Print full status", "debug status")
+        AddDebugButton("Reset failed challenge", "debug revive")
+        AddDebugButton("Preview failure UI", "debug failui")
+        AddDebugButton("Preview victory UI", "debug victoryui")
+        AddDebugButton("Abandon all feats", "debug feats abandon")
+        AddDebugButton("Trail Rations: fill meters", "debug rations full")
+        AddDebugButton("Trail Rations: empty meters", "debug rations empty")
+        AddDebugButton("Trail Rations: show HUD", "debug rations hud")
+        AddDebugButton("Road Weariness: fill fatigue", "debug weariness full")
+        AddDebugButton("Road Weariness: empty fatigue", "debug weariness empty")
+        AddDebugButton("Road Weariness: start rest", "debug weariness rest")
+        AddDebugButton("Road Weariness: stop rest", "debug weariness stop")
+        AddDebugButton("Road Weariness: show HUD", "debug weariness hud")
+        AddDebugButton("Mandatory Bath Time: status", "debug bath status")
+        AddDebugButton("Mandatory Bath Time: make due", "debug bath due")
+        AddDebugButton("Mandatory Bath Time: reset", "debug bath reset")
+        AddDebugButton("Mandatory Bath Time: show HUD", "debug bath hud")
+        AddDebugButton("Need of Blood: status", "debug blood status")
+        AddDebugButton("Need of Blood: make due", "debug blood due")
+        AddDebugButton("Need of Blood: satisfy", "debug blood satisfy")
+        AddDebugButton("Need of Blood: reset", "debug blood reset")
+        AddDebugButton("Need of Blood: show HUD", "debug blood hud")
+        AddDebugButton("Lockpick Nerves: status", "debug lockpick status")
+        AddDebugButton("Lockpick Nerves: fail", "debug lockpick fail")
+        AddDebugButton("Lockpick Nerves: break", "debug lockpick break")
+        AddDebugButton("Lockpick Nerves: success", "debug lockpick success")
+        AddDebugButton("Lockpick Nerves: reset", "debug lockpick reset")
+        AddDebugButton("Lockpick Nerves: show HUD", "debug lockpick hud")
+        AddDebugButton("Barbarian: status", "debug barbarian status")
+        AddDebugButton("Barbarian: enforce", "debug barbarian enforce")
+        AddDebugButton("Hands Free: status", "debug handsfree status")
+        AddDebugButton("Hands Free: enforce", "debug handsfree enforce")
+        AddDebugButton("Self Made: status", "debug selfmade status")
+        AddDebugButton("Self Made: enforce", "debug selfmade enforce")
 
         local panelData = {
             type = "panel",
@@ -2088,52 +2221,207 @@ local function OnAddOnLoaded(event, addonName)
             width = "full",
             func = OpenHardcoreUI
         }, {
-            type = "checkbox",
-            name = "Debug mode",
-            tooltip = "Enable /hc debug commands for testing addon behavior.",
-            width = "full",
-            getFunc = function()
-                return HARDCORE.saved and HARDCORE.saved.debugMode
-            end,
-            setFunc = function(val)
-                if HARDCORE.saved then
-                    HARDCORE.saved.debugMode = val and true or false
-                end
-            end,
-            default = false
-        }, {
-            type = "checkbox",
-            name = "Disable vision dim",
-            tooltip = "Hide the health bar but skip the screen darkening/vignette effect.",
-            width = "full",
-            getFunc = function()
-                return HARDCORE.saved and HARDCORE.saved.disableVisionDim
-            end,
-            setFunc = function(val)
-                if HARDCORE.saved then
-                    HARDCORE.saved.disableVisionDim = val and true or false
-                end
-                RefreshNoHealthBarOptions()
-            end
-        }, {
-            type = "checkbox",
-            name = "Disable low-health volume drop",
-            tooltip = "Prevent audio volume from being reduced when your health is low.",
-            width = "full",
-            getFunc = function()
-                return HARDCORE.saved and HARDCORE.saved.disableLowHealthVolume
-            end,
-            setFunc = function(val)
-                if HARDCORE.saved then
-                    HARDCORE.saved.disableLowHealthVolume = val and true or false
-                end
-                RefreshNoHealthBarOptions()
-            end
+            type = "submenu",
+            name = "General",
+            tooltip = "Configure common HARDCORE behavior.",
+            controls = {{
+                type = "checkbox",
+                name = "Disable vision dim",
+                tooltip = "Hide the health bar but skip the screen darkening/vignette effect.",
+                width = "full",
+                getFunc = function()
+                    return HARDCORE.saved and HARDCORE.saved.disableVisionDim
+                end,
+                setFunc = function(val)
+                    if HARDCORE.saved then
+                        HARDCORE.saved.disableVisionDim = val and true or false
+                    end
+                    RefreshNoHealthBarOptions()
+                end,
+                default = false
+            }, {
+                type = "checkbox",
+                name = "Disable low-health volume drop",
+                tooltip = "Prevent audio volume from being reduced when your health is low.",
+                width = "full",
+                getFunc = function()
+                    return HARDCORE.saved and HARDCORE.saved.disableLowHealthVolume
+                end,
+                setFunc = function(val)
+                    if HARDCORE.saved then
+                        HARDCORE.saved.disableLowHealthVolume = val and true or false
+                    end
+                    RefreshNoHealthBarOptions()
+                end,
+                default = false
+            }, {
+                type = "checkbox",
+                name = "Disable notification messages",
+                tooltip = "Hide HARDCORE alert messages generated by this addon.",
+                width = "full",
+                getFunc = function()
+                    return HARDCORE.saved and HARDCORE.saved.disableNotificationMessages
+                end,
+                setFunc = function(val)
+                    if HARDCORE.saved then
+                        HARDCORE.saved.disableNotificationMessages = val and true or false
+                    end
+                end,
+                default = false
+            }, {
+                type = "checkbox",
+                name = "Plot Armor",
+                tooltip = "Death can be dramatic, but it will not fail or end the active challenge.",
+                width = "full",
+                getFunc = function()
+                    return HARDCORE.saved and HARDCORE.saved.neverDie
+                end,
+                setFunc = function(val)
+                    if HARDCORE.saved then
+                        local enabled = val and true or false
+                        local wasEnabled = HARDCORE.saved.neverDie == true
+                        HARDCORE.saved.neverDie = enabled
+                        if enabled and not wasEnabled then
+                            PlaySound(SOUNDS.DAEDRIC_ARTIFACT_SPAWNED)
+                        end
+                    end
+                end,
+                default = false
+            }, {
+                type = "checkbox",
+                name = "Allow home travel",
+                tooltip = "Allow travel to player homes while Bound Wayshrines or No Wayshrines is active.",
+                width = "full",
+                getFunc = function()
+                    return HARDCORE.saved and HARDCORE.saved.allowHomeTravel
+                end,
+                setFunc = function(val)
+                    if HARDCORE.saved then
+                        HARDCORE.saved.allowHomeTravel = val and true or false
+                    end
+                end,
+                default = false
+            }}
         }, {
             type = "submenu",
-            name = "Trail Rations HUD",
-            tooltip = "Configure the hunger and thirst survival display.",
+            name = "Trail Rations",
+            tooltip = "Configure hunger, thirst, ration recovery, and the survival display.",
             controls = {{
+                type = "slider",
+                name = "Hunger drain time",
+                tooltip = "Minutes before hunger drains from full to empty.",
+                min = 5,
+                max = 240,
+                step = 5,
+                width = "full",
+                getFunc = function()
+                    return GetTrailRationsSV().settings.hungerDrainMinutes
+                end,
+                setFunc = function(value)
+                    GetTrailRationsSV().settings.hungerDrainMinutes = value
+                end,
+                default = 90
+            }, {
+                type = "slider",
+                name = "Thirst drain time",
+                tooltip = "Minutes before thirst drains from full to empty.",
+                min = 5,
+                max = 240,
+                step = 5,
+                width = "full",
+                getFunc = function()
+                    return GetTrailRationsSV().settings.thirstDrainMinutes
+                end,
+                setFunc = function(value)
+                    GetTrailRationsSV().settings.thirstDrainMinutes = value
+                end,
+                default = 45
+            }, {
+                type = "checkbox",
+                name = "Use /eat and /drink emotes",
+                tooltip = "Restore hunger and thirst from emote animation windows instead of food and drink consumables.",
+                width = "full",
+                getFunc = function()
+                    return GetTrailRationsSV().settings.useEmotes == true
+                end,
+                setFunc = function(value)
+                    GetTrailRationsSV().settings.useEmotes = value and true or false
+                    RefreshTrailRationsOptions()
+                end,
+                default = false
+            }, {
+                type = "slider",
+                name = "/eat animation offset",
+                tooltip = "Milliseconds after /eat before hunger starts restoring. Use this to match the visible eating animation.",
+                min = 0,
+                max = 5000,
+                step = 100,
+                width = "full",
+                disabled = function()
+                    return GetTrailRationsSV().settings.useEmotes ~= true
+                end,
+                getFunc = function()
+                    return GetTrailRationsSV().settings.eatStartDelayMs
+                end,
+                setFunc = function(value)
+                    GetTrailRationsSV().settings.eatStartDelayMs = value
+                end,
+                default = 0
+            }, {
+                type = "slider",
+                name = "/eat hunger restored",
+                tooltip = "Hunger restored during each three-second /eat animation.",
+                min = 1,
+                max = 100,
+                step = 1,
+                width = "full",
+                disabled = function()
+                    return GetTrailRationsSV().settings.useEmotes ~= true
+                end,
+                getFunc = function()
+                    return GetTrailRationsSV().settings.eatRefillAmount
+                end,
+                setFunc = function(value)
+                    GetTrailRationsSV().settings.eatRefillAmount = value
+                end,
+                default = 20
+            }, {
+                type = "slider",
+                name = "/drink animation offset",
+                tooltip = "Milliseconds after /drink before thirst starts restoring. Use this to match the visible drinking animation.",
+                min = 0,
+                max = 5000,
+                step = 100,
+                width = "full",
+                disabled = function()
+                    return GetTrailRationsSV().settings.useEmotes ~= true
+                end,
+                getFunc = function()
+                    return GetTrailRationsSV().settings.drinkStartDelayMs
+                end,
+                setFunc = function(value)
+                    GetTrailRationsSV().settings.drinkStartDelayMs = value
+                end,
+                default = 0
+            }, {
+                type = "slider",
+                name = "/drink thirst restored",
+                tooltip = "Thirst restored during each 2.5-second /drink animation.",
+                min = 1,
+                max = 100,
+                step = 1,
+                width = "full",
+                disabled = function()
+                    return GetTrailRationsSV().settings.useEmotes ~= true
+                end,
+                getFunc = function()
+                    return GetTrailRationsSV().settings.drinkRefillAmount
+                end,
+                setFunc = function(value)
+                    GetTrailRationsSV().settings.drinkRefillAmount = value
+                end,
+                default = 20
+            }, {
                 type = "checkbox",
                 name = "Unlock survival HUD",
                 tooltip = "Allow the Trail Rations HUD to be dragged. Lock it again for normal play.",
@@ -2182,9 +2470,116 @@ local function OnAddOnLoaded(event, addonName)
             }}
         }, {
             type = "submenu",
-            name = "Road Weariness HUD",
-            tooltip = "Configure the fatigue survival display.",
+            name = "Road Weariness",
+            tooltip = "Configure fatigue, recovery, lockouts, and the weariness display.",
             controls = {{
+                type = "slider",
+                name = "Fatigue drain time",
+                tooltip = "Minutes before weariness drains from full to empty while not resting.",
+                min = 10,
+                max = 300,
+                step = 5,
+                width = "full",
+                getFunc = function()
+                    return GetRoadWearinessSV().settings.fatigueDrainMinutes
+                end,
+                setFunc = function(value)
+                    GetRoadWearinessSV().settings.fatigueDrainMinutes = value
+                end,
+                default = 150
+            }, {
+                type = "slider",
+                name = "Rest recovery time",
+                tooltip = "Minutes for rest to restore weariness from empty to full.",
+                min = 5,
+                max = 180,
+                step = 5,
+                width = "full",
+                getFunc = function()
+                    return GetRoadWearinessSV().settings.restoreMinutes
+                end,
+                setFunc = function(value)
+                    GetRoadWearinessSV().settings.restoreMinutes = value
+                end,
+                default = 60
+            }, {
+                type = "slider",
+                name = "Stamina loss penalty",
+                tooltip = "Extra weariness lost from stamina spending while moving.",
+                min = 0,
+                max = 50,
+                step = 1,
+                width = "full",
+                getFunc = function()
+                    return GetRoadWearinessSV().settings.staminaDrainMultiplier
+                end,
+                setFunc = function(value)
+                    GetRoadWearinessSV().settings.staminaDrainMultiplier = value
+                end,
+                default = 18
+            }, {
+                type = "slider",
+                name = "Action fatigue loss",
+                tooltip = "Weariness lost when using an action slot ability.",
+                min = 0,
+                max = 2,
+                step = 0.05,
+                decimals = 2,
+                width = "full",
+                getFunc = function()
+                    return GetRoadWearinessSV().settings.actionDrain
+                end,
+                setFunc = function(value)
+                    GetRoadWearinessSV().settings.actionDrain = value
+                end,
+                default = 0.35
+            }, {
+                type = "slider",
+                name = "Combat hit fatigue loss",
+                tooltip = "Weariness lost for player damage events, throttled by the rule.",
+                min = 0,
+                max = 2,
+                step = 0.05,
+                decimals = 2,
+                width = "full",
+                getFunc = function()
+                    return GetRoadWearinessSV().settings.combatDrain
+                end,
+                setFunc = function(value)
+                    GetRoadWearinessSV().settings.combatDrain = value
+                end,
+                default = 0.20
+            }, {
+                type = "slider",
+                name = "Weapon lock threshold",
+                tooltip = "At or below this weariness value, equipped weapons are removed until you rest.",
+                min = 0,
+                max = 100,
+                step = 1,
+                width = "full",
+                getFunc = function()
+                    return GetRoadWearinessSV().settings.weaponLockThreshold
+                end,
+                setFunc = function(value)
+                    GetRoadWearinessSV().settings.weaponLockThreshold = value
+                end,
+                default = 20
+            }, {
+                type = "slider",
+                name = "NPC lock threshold",
+                tooltip = "At or below this weariness value, NPC conversations and quest dialogs are blocked.",
+                min = 0,
+                max = 100,
+                step = 1,
+                width = "full",
+                getFunc = function()
+                    return GetRoadWearinessSV().settings.npcLockThreshold
+                end,
+                setFunc = function(value)
+                    GetRoadWearinessSV().settings.npcLockThreshold = value
+                end,
+                default = 10
+            }, {
                 type = "checkbox",
                 name = "Unlock weariness HUD",
                 tooltip = "Allow the Road Weariness HUD to be dragged. Lock it again for normal play.",
@@ -2233,7 +2628,7 @@ local function OnAddOnLoaded(event, addonName)
             }}
         }, {
             type = "submenu",
-            name = "Mandatory Bath Time HUD",
+            name = "Mandatory Bath Time",
             tooltip = "Configure the periodic bath requirement display.",
             controls = {{
                 type = "checkbox",
@@ -2284,7 +2679,7 @@ local function OnAddOnLoaded(event, addonName)
             }}
         }, {
             type = "submenu",
-            name = "No Swimming HUD",
+            name = "No Swimming",
             tooltip = "Configure the water danger countdown display.",
             controls = {{
                 type = "checkbox",
@@ -2325,7 +2720,7 @@ local function OnAddOnLoaded(event, addonName)
             }}
         }, {
             type = "submenu",
-            name = "Need of Blood HUD",
+            name = "Need of Blood",
             tooltip = "Configure the blood demand countdown display.",
             controls = {{
                 type = "checkbox",
@@ -2379,7 +2774,7 @@ local function OnAddOnLoaded(event, addonName)
             }}
         }, {
             type = "submenu",
-            name = "Lockpick Nerves HUD",
+            name = "Lockpick Nerves",
             tooltip = "Configure the lockpick panic display.",
             controls = {{
                 type = "checkbox",
@@ -2428,6 +2823,11 @@ local function OnAddOnLoaded(event, addonName)
                     end
                 end
             }}
+        }, {
+            type = "submenu",
+            name = "Debug",
+            tooltip = "Configure testing helpers.",
+            controls = debugControls
         }})
     end
 
@@ -2523,7 +2923,7 @@ local function ConfigureCongratulationsWindow(win, previewMode)
         HARDCORE.RestoreHUDSettings()
         win:SetHidden(true)
         SetGameCameraUIMode(false)
-        ZO_Alert(UI_ALERT_CATEGORY_ALERT, SOUNDS.QUEST_ACCEPTED, "Hardcore Challenge Completed!")
+        HARDCORE.ShowAlert(UI_ALERT_CATEGORY_ALERT, SOUNDS.QUEST_ACCEPTED, "Hardcore Challenge Completed!")
         zo_callLater(function() ReloadUI() end, 500)
     end)
 
@@ -2765,7 +3165,7 @@ local function ConfigureDeathWindow(win, previewMode)
     win.actionButton:SetHandler("OnClicked", function()
         win:SetHidden(true)
         SetGameCameraUIMode(false)
-        ZO_Alert(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, "Hardcore Challenge Failed.")
+        HARDCORE.ShowAlert(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, "Hardcore Challenge Failed.")
         zo_callLater(function() ReloadUI() end, 500)
     end)
     win.closeButton:SetHandler("OnClicked", function()

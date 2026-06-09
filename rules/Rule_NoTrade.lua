@@ -23,7 +23,7 @@ end
 
 local function Announce()
     if Throttle() then return end
-    ZO_Alert(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, "HARDCORE: Trading with other players is disabled.")
+    HARDCORE.ShowAlert(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, "HARDCORE: Trading with other players is disabled.")
 end
 
 local function SafeHideTrade()

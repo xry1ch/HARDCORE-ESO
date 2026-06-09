@@ -25,7 +25,7 @@ local function AlertBlocked()
     if ShouldThrottleAlert() then
         return
     end
-    ZO_Alert(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, "HARDCORE: Repairing gear is disabled.")
+    HARDCORE.ShowAlert(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, "HARDCORE: Repairing gear is disabled.")
 end
 
 local function InstallHooks()

@@ -12,7 +12,7 @@ Rule.active = false
 Rule._hooksInstalled = false
 
 local function Announce()
-  ZO_Alert(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, "HARDCORE: Mail is disabled.")
+  HARDCORE.ShowAlert(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, "HARDCORE: Mail is disabled.")
 end
 
 local function InstallHooks()

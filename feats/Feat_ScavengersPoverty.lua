@@ -27,7 +27,7 @@ end
 local function AlertBlocked()
     local now = GetFrameTimeMilliseconds()
     if now - Rule._lastAlertMs > 1200 then
-        ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK,
+        HARDCORE.ShowAlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK,
             "HARDCORE: Scavenger's Poverty forbids vendors, fences, buying, selling, and laundering.")
         Rule._lastAlertMs = now
     end

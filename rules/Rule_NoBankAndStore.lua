@@ -21,7 +21,7 @@ local hooksInstalled = false
 
 local function Announce(what)
     local msg = string.format("HARDCORE: %s is disabled.", what or "Banking / Guild Store")
-    ZO_Alert(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, msg)
+    HARDCORE.ShowAlert(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, msg)
 end
 
 local function HideIf(name)

@@ -63,7 +63,7 @@ end
 local function Alert()
     local now = GetFrameTimeMilliseconds()
     if now - Rule._lastAlertMs > 1500 then
-        ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK,
+        HARDCORE.ShowAlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK,
             "HARDCORE: Self Made allows only gear crafted by this character.")
         Rule._lastAlertMs = now
     end

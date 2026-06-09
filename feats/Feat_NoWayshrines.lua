@@ -28,13 +28,33 @@ local function AnnounceBlocked()
     local now = GetFrameTimeMilliseconds()
     if now - Rule._lastAlertMs > 1200 then
         Rule._lastAlertMs = now
-        ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK,
+        HARDCORE.ShowAlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK,
             "HARDCORE: Wayshrine travel is forbidden.")
     end
 end
 
 local function ShouldBlockWayshrineTravel()
     return HARDCORE.IsNoWayshrinesFeatActive()
+end
+
+local function IsHomeTravelAllowed()
+    return HARDCORE and HARDCORE.IsHomeTravelAllowed and HARDCORE.IsHomeTravelAllowed()
+end
+
+local function ShouldBlockHouseTravel()
+    return ShouldBlockWayshrineTravel() and not IsHomeTravelAllowed()
+end
+
+local function ShouldBlockTravelDialog(dialogName)
+    if not ShouldBlockWayshrineTravel() then
+        return false
+    end
+
+    if dialogName == "TRAVEL_TO_HOUSE_CONFIRM" then
+        return not IsHomeTravelAllowed()
+    end
+
+    return dialogName == "FAST_TRAVEL_CONFIRM" or dialogName == "RECALL_CONFIRM"
 end
 
 local function CloseFastTravelInteraction()
@@ -69,11 +89,11 @@ local function InstallHooks()
     end
 
     ZO_PreHook("ZO_Dialogs_ShowPlatformDialog", function(dialogName)
-        if ShouldBlockWayshrineTravel() and
-            (dialogName == "FAST_TRAVEL_CONFIRM" or dialogName == "RECALL_CONFIRM" or dialogName == "TRAVEL_TO_HOUSE_CONFIRM") then
+        if ShouldBlockTravelDialog(dialogName) then
             BlockAndCloseFastTravel()
             return true
         end
+        return false
     end)
 
     ZO_PreHook("FastTravelToNode", function()
@@ -81,7 +101,26 @@ local function InstallHooks()
             BlockAndCloseFastTravel()
             return true
         end
+        return false
     end)
+
+    local blockedHouseTravelFunctions = {
+        "JumpToHouse",
+        "JumpToSpecificHouse",
+        "RequestJumpToHouse"
+    }
+
+    for _, functionName in ipairs(blockedHouseTravelFunctions) do
+        if _G[functionName] then
+            ZO_PreHook(functionName, function()
+                if ShouldBlockHouseTravel() then
+                    AnnounceBlocked()
+                    return true
+                end
+                return false
+            end)
+        end
+    end
 
     Rule._hooksInstalled = true
 end

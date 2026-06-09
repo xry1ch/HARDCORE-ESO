@@ -24,7 +24,7 @@ local function AnnounceBlocked()
     local now = GetFrameTimeMilliseconds()
     if now - Rule._lastAlertMs > 1200 then
         Rule._lastAlertMs = now
-        ZO_AlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK,
+        HARDCORE.ShowAlertNoSuppression(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK,
             "HARDCORE: NPC conversations are disabled.")
     end
 end

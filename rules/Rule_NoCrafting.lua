@@ -31,7 +31,7 @@ local function IsSelfMadeCraftingAllowed(craftSkill, craftMode)
 end
 
 local function Announce()
-    ZO_Alert(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, "HARDCORE: Only Alchemy and Cooking are allowed.")
+    HARDCORE.ShowAlert(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, "HARDCORE: Only Alchemy and Cooking are allowed.")
 end
 
 local function CleanExit(interactionType)
