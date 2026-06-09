@@ -99,7 +99,9 @@ local RULE_ICONS = {
     armorDiscipline = "/esoui/art/crafting/smithing_tabicon_armorset_up.dds",
     oathboundWeapon = "/esoui/art/crafting/smithing_tabicon_weaponset_up.dds",
     scavengersPoverty = "/esoui/art/vendor/vendor_tabicon_sell_up.dds",
-    questlessExile = "/esoui/art/journal/journal_tabicon_quest_up.dds"
+    questlessExile = "/esoui/art/journal/journal_tabicon_quest_up.dds",
+    unseenWhispers = "/esoui/art/treeicons/antiquities_indexicon_scryable_up.dds",
+    lightsOut = "/esoui/art/stealth/stealth_64.dds"
 }
 
 local RULES = {{
@@ -307,6 +309,18 @@ local FEATS = {{
     difficulty = 1,
     ruleId = "NoWayshrines"
 }, {
+    title = "Unseen Whispers",
+    flavor = "From time to time, the silence forgets itself.",
+    icon = RULE_ICONS.unseenWhispers,
+    difficulty = 1,
+    ruleId = "UnseenWhispers"
+}, {
+    title = "Lights Out",
+    flavor = "Every so often, the light simply leaves.",
+    icon = RULE_ICONS.lightsOut,
+    difficulty = 1,
+    ruleId = "LightsOut"
+}, {
     title = "Single Armor Discipline",
     flavor = "The first armor weight found on your body becomes your discipline. Other armor weights are removed.",
     icon = RULE_ICONS.armorDiscipline,
@@ -338,6 +352,8 @@ local FEAT_RULE_IDS = {
     NoNpcTalk = true,
     NoMap = true,
     NoWayshrines = true,
+    UnseenWhispers = true,
+    LightsOut = true,
     SingleArmorDiscipline = true,
     QuestlessExile = true
 }
@@ -1783,6 +1799,10 @@ local function RegisterSlash()
         d("/hc debug handsfree enforce")
         d("/hc debug selfmade status")
         d("/hc debug selfmade enforce")
+        d("/hc debug whispers status")
+        d("/hc debug whispers play")
+        d("/hc debug lightsout status")
+        d("/hc debug lightsout blackout")
     end
 
     RunDebugCommand = function(args)
@@ -1832,6 +1852,12 @@ local function RegisterSlash()
             end
             if HARDCORE.DebugSelfMadeStatus then
                 HARDCORE.DebugSelfMadeStatus()
+            end
+            if HARDCORE.DebugUnseenWhispersStatus then
+                HARDCORE.DebugUnseenWhispersStatus()
+            end
+            if HARDCORE.DebugLightsOutStatus then
+                HARDCORE.DebugLightsOutStatus()
             end
             return
         end
@@ -1951,6 +1977,24 @@ local function RegisterSlash()
                 return
             end
             HARDCORE.DebugSelfMadeCommand(action or "help")
+            return
+        end
+
+        if area == "whispers" or area == "unseenwhispers" then
+            if not HARDCORE.DebugUnseenWhispersCommand then
+                d("HARDCORE: Unseen Whispers debug helpers are not loaded.")
+                return
+            end
+            HARDCORE.DebugUnseenWhispersCommand(action or "help")
+            return
+        end
+
+        if area == "lightsout" or area == "lights" then
+            if not HARDCORE.DebugLightsOutCommand then
+                d("HARDCORE: Lights Out debug helpers are not loaded.")
+                return
+            end
+            HARDCORE.DebugLightsOutCommand(action or "help")
             return
         end
 
@@ -2204,6 +2248,10 @@ local function OnAddOnLoaded(event, addonName)
         AddDebugButton("Hands Free: enforce", "debug handsfree enforce")
         AddDebugButton("Self Made: status", "debug selfmade status")
         AddDebugButton("Self Made: enforce", "debug selfmade enforce")
+        AddDebugButton("Unseen Whispers: status", "debug whispers status")
+        AddDebugButton("Unseen Whispers: play sound", "debug whispers play")
+        AddDebugButton("Lights Out: status", "debug lightsout status")
+        AddDebugButton("Lights Out: blackout", "debug lightsout blackout")
 
         local panelData = {
             type = "panel",

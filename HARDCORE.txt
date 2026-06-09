@@ -26,6 +26,8 @@ feats/Feat_NoNpcTalk.lua
 feats/Feat_QuestlessExile.lua
 feats/Feat_NoMap.lua
 feats/Feat_NoWayshrines.lua
+feats/Feat_UnseenWhispers.lua
+feats/Feat_LightsOut.lua
 feats/Feat_SingleArmorDiscipline.lua
 rules/Rule_NoMail.lua
 rules/Rule_NoCrafting.lua
